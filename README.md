@@ -1,4 +1,4 @@
-# Validate Steps (v0.4) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.5) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -78,3 +78,20 @@ Les fournisseurs gèrent leurs comptes et leurs vérifications côté serveur. L
 - [Android exact alarm / permission](https://developer.android.com/develop/background-work/services/alarms)
 - [WeWard validation manuelle](https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses)
 - [Macadam validation avant minuit](https://help.macadam.app/fr/articles/469049-comment-fonctionnent-la-validation-des-pas-et-les-recompenses)
+
+
+## v0.5 — Secours ciblés, moins de réveils
+
+- L'ancien `PeriodicWorkRequest` (une vérification environ toutes les 30 minutes, y compris hors de la plage utile) est remplacé par **deux `OneTimeWorkRequest` datés** à 22 h 20 et 23 h 15, en complément de l'alarme de 22 h.
+- Les contrôles de secours sont associés à une **date locale précise**. Ils ne font aucune lecture s'ils sont exécutés en retard un autre jour, ou si la lecture a déjà réussi.
+- Chaque secours utilise le calcul des instants réels, y compris en cas de passage à l'heure d'hiver. Quand le planning est réarmé, les deux demandes sont mises à jour sans créer de doublons.
+- La désactivation annule les tâches de secours ; aucune interface n'est ouverte lors de leurs exécutions.
+- **Limite Android** : WorkManager exécute ces deux tâches dès que le système le permet ; les heures exactes ne sont pas garanties. Un téléphone éteint ou un processus arrêté de force ne peut pas être réveillé par magie.
+
+### Provenance et conformité des pas
+La lecture locale de Santé Connect ne confirme **aucun** crédit de récompense. En octobre 2026, WeWard documente explicitement un bouton manuel et Macadam une validation quotidienne avant minuit. Ces services n'exposent pas d'API publique d'encaissement sans interface vérifiée par ce projet. Toute future intégration devra être officiellement autorisée et prouver un crédit réel avant de marquer une récompense comme validée.
+
+Sources techniques :
+- https://developer.android.com/reference/androidx/work/OneTimeWorkRequest
+- https://developer.android.com/reference/androidx/work/ExistingWorkPolicy
+- https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work
