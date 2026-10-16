@@ -3,6 +3,7 @@ package fr.validatesteps;
 import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -10,38 +11,43 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import java.time.LocalDate;
 
-/** First-run system consent only. No UI is opened by the nightly worker. */
+/** Optional one-time setup and diagnostics; never launched by the nightly worker. */
 public final class MainActivity extends Activity {
-    private LinearLayout layout;
     private TextView info;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        layout = new LinearLayout(this);
+        LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(34, 46, 34, 34);
-
         info = new TextView(this);
-        info.setTextSize(18);
+        info.setTextSize(17);
         layout.addView(info);
-        addButton("Autoriser les données Santé Connect", v ->
+
+        addButton(layout, "Autoriser Santé Connect (pas et arrière-plan)", v ->
             requestPermissions(new String[] {
                 HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND
             }, 10));
-        addButton("Autoriser les notifications", v ->
+        addButton(layout, "Autoriser les notifications (facultatif)", v ->
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 11));
-        addButton("Autoriser les alarmes exactes à 22 h", v -> {
+        addButton(layout, "Autoriser les alarmes exactes", v -> {
             Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
             intent.setData(Uri.parse("package:" + getPackageName()));
             startActivity(intent);
         });
-        addButton("Activer 22 h en arrière-plan", v -> {
+        addButton(layout, "Activer la lecture quotidienne à 22 h", v -> {
             new RunStore(this).enable(true);
             DailyScheduler.schedule(this);
+            DailyScheduler.scheduleRecovery(this, true);
             refresh();
         });
-        addButton("Désactiver", v -> {
+        addButton(layout, "Tester la lecture réelle maintenant", v ->
+            HealthReader.queryDay(this, LocalDate.now(), (steps, status) ->
+                info.append("\n\nTEST (sans gain de pièces) : " +
+                    (steps == null ? status : steps + " pas détectés"))));
+        addButton(layout, "Désactiver et annuler les alarmes", v -> {
             new RunStore(this).enable(false);
             DailyScheduler.schedule(this);
             refresh();
@@ -50,11 +56,11 @@ public final class MainActivity extends Activity {
         refresh();
     }
 
-    private void addButton(String label, View.OnClickListener onClick) {
+    private void addButton(LinearLayout parent, String label, View.OnClickListener listener) {
         Button button = new Button(this);
         button.setText(label);
-        button.setOnClickListener(onClick);
-        layout.addView(button);
+        button.setOnClickListener(listener);
+        parent.addView(button);
     }
 
     @Override protected void onResume() {
@@ -70,18 +76,17 @@ public final class MainActivity extends Activity {
 
     private void refresh() {
         RunStore store = new RunStore(this);
-        String enabled = store.enabled() ? "ACTIF" : "INACTIF";
-        String exact = DailyScheduler.exactAllowed(this) ? "oui" : "non";
         boolean health = checkSelfPermission(HealthReader.READ_STEPS) ==
-            android.content.pm.PackageManager.PERMISSION_GRANTED &&
+            PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
-            android.content.pm.PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS - configuration initiale\n\n" +
-            "Tâche quotidienne à 22 h : " + enabled + "\n" +
-            "Alarme exacte autorisée : " + exact + "\n" +
-            "Lecture Santé Connect en arrière-plan : " + (health ? "oui" : "non") +
-            "\n\n" + store.describe() + "\n\n" +
-            "Une lecture de pas n'est PAS une validation de récompenses WeWard, " +
-            "Macadam ou Winwalk. Aucun écran ne sera ouvert automatiquement.");
+            PackageManager.PERMISSION_GRANTED;
+        info.setText("VALIDATE STEPS 0.2\n\n" +
+            "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
+            "\nAlarme exacte : " + (DailyScheduler.exactAllowed(this) ? "autorisée" : "non autorisée") +
+            "\nSanté Connect (arrière-plan) : " + (health ? "autorisée" : "non autorisée") +
+            "\n\n" + store.describe() +
+            "\n\nLa lecture s'effectue sans ouvrir d'application. Ce relevé ne valide " +
+            "PAS les pièces WeWard, Macadam ou Winwalk. Sweatcoin est géré " +
+            "indépendamment par sa propre application.");
     }
 }
