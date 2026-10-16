@@ -2,6 +2,7 @@ package fr.validatesteps;
 
 import android.content.Context;
 import androidx.annotation.NonNull;
+import androidx.work.Data;
 import androidx.work.ExistingWorkPolicy;
 import androidx.work.OneTimeWorkRequest;
 import androidx.work.WorkManager;
@@ -14,18 +15,24 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Durable no-UI worker. No network, no reward provider access, no screen unlock.
- * WorkManager manages process lifecycle; AlarmManager defines the wall-clock trigger.
+ * Durable no-UI reader. Work input is the date of the alarm, not the execution
+ * date; WorkManager may postpone it until after midnight.
  */
 public final class AuditWorker extends Worker {
+    private static final String INPUT_DAY = "audit_day";
+    private static final String QUEUE = "step-audit-serialized";
     public AuditWorker(@NonNull Context context, @NonNull WorkerParameters params) {
         super(context, params);
     }
 
-    public static void enqueue(Context context) {
-        String uniqueName = "daily-step-audit-" + LocalDate.now();
-        OneTimeWorkRequest job = new OneTimeWorkRequest.Builder(AuditWorker.class).build();
-        WorkManager.getInstance(context).enqueueUniqueWork(uniqueName, ExistingWorkPolicy.KEEP, job);
+    public static void enqueue(Context context, LocalDate day) {
+        Data data = new Data.Builder().putString(INPUT_DAY, day.toString()).build();
+        OneTimeWorkRequest job = new OneTimeWorkRequest.Builder(AuditWorker.class)
+            .setInputData(data).build();
+        // Unlike KEEP, queue a new retry when an earlier read is still running.
+        // Unlike REPLACE, do not interrupt an in-flight Health Connect read.
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            QUEUE, ExistingWorkPolicy.APPEND_OR_REPLACE, job);
     }
 
     @NonNull @Override public Result doWork() {
@@ -33,46 +40,46 @@ public final class AuditWorker extends Worker {
         RunStore store = new RunStore(context);
         if (!store.enabled()) return Result.success();
 
-        LocalDate day = LocalDate.now();
-        if (store.successfulOn(day)) {
-            DailyScheduler.cancelRecovery(context);
-            return Result.success();
-        }
+        LocalDate now = LocalDate.now();
+        LocalDate day = AuditDay.resolve(getInputData().getString(INPUT_DAY), now);
+        if (day == null || !store.begin(day)) return Result.success();
 
-        store.start(day);
-        final CountDownLatch done = new CountDownLatch(1);
+        final CountDownLatch completed = new CountDownLatch(1);
         final AtomicReference<Long> steps = new AtomicReference<>();
-        final AtomicReference<String> state = new AtomicReference<>("read_timeout");
+        final AtomicReference<String> statusRef = new AtomicReference<>("read_timeout");
         try {
             HealthReader.queryDay(context, day, (value, status) -> {
                 steps.set(value);
-                state.set(status);
-                done.countDown();
+                statusRef.set(status);
+                completed.countDown();
             });
-            if (!done.await(25, TimeUnit.SECONDS)) {
-                state.set("read_timeout");
-            }
+            if (!completed.await(25, TimeUnit.SECONDS))
+                statusRef.set("read_timeout");
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            state.set("interrupted");
+            statusRef.set("interrupted");
         } catch (RuntimeException unexpected) {
-            state.set("unexpected_error");
+            statusRef.set("unexpected_error");
         }
 
-        String status = state.get();
+        String status = statusRef.get();
         Long count = "steps_read".equals(status) ? steps.get() : null;
-        store.finish(day, count, status);
+        if (!store.finish(day, count, status)) return Result.success();
 
-        boolean permanent = "permission_missing".equals(status) ||
+        boolean isCurrentDay = day.equals(LocalDate.now());
+        boolean missingPermission = "permission_missing".equals(status) ||
             "health_connect_unavailable".equals(status);
-        if ("steps_read".equals(status) || permanent) {
-            DailyScheduler.cancelRecovery(context);
-            Notifier.show(context, count, status);
-        } else {
+        if ("steps_read".equals(status) || missingPermission) {
+            if (isCurrentDay) DailyScheduler.cancelRecovery(context);
+            Notifier.show(context, day, count, status);
+        } else if (isCurrentDay) {
             DailyScheduler.scheduleRecovery(context, false);
-            if (!RetryPolicy.canRecover(ZonedDateTime.now())) {
-                Notifier.show(context, null, status);
-            }
+            if (!RetryPolicy.canRecover(ZonedDateTime.now()))
+                Notifier.show(context, day, null, status);
+        } else {
+            // A late read is still attributed correctly, but no expired
+            // third-party reward can be claimed on the next day.
+            Notifier.show(context, day, null, status);
         }
         return Result.success();
     }
