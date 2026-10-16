@@ -1,4 +1,4 @@
-# Validate Steps (v0.3) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.4) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -60,3 +60,21 @@ SDK Android 35, JDK 17, Gradle 8.10.2. Le job GitHub Actions publie un APK de te
 - https://developer.android.com/reference/android/health/connect/HealthPermissions
 - https://play.google.com/store/apps/details?id=com.winwalk.android
 - https://help.sweatco.in/hc/en-us/articles/360012520012-How-can-I-improve-my-step-conversion-All-Other-Android-Devices
+
+
+## v0.4 — Filet de sécurité sans interface
+- Un `PeriodicWorkRequest` de **30 minutes**, avec fenêtre flexible de 15 minutes, complète l'alarme quotidienne. Le système peut le décaler ; ce n'est **pas** un minuteur exact.
+- Seulement dans la plage locale **22:00–23:40**, le contrôle vérifie si le relevé Santé Connect du jour a réussi ; sinon il met une lecture en attente dans la file WorkManager sans ouvrir l'interface.
+- Après succès, refus de permission, indisponibilité du système ou désactivation, les tâches de lecture inutiles sont évitées.
+- Le contrôle périodique est reprogrammé de façon idempotente sur démarrage/redémarrage et annulé à la désactivation.
+- Pas d'accès réseau, de root, de login tiers ni de pas fabriqués. Une lecture réussie **n'est pas** un crédit WeWard, Macadam ou Winwalk.
+- Tests supplémentaires de la fenêtre de secours, des erreurs permanentes et du passage à l'heure d'hiver.
+
+### Pourquoi ne pas faire de requêtes HTTP privées pour créditer les pièces ?
+Les fournisseurs gèrent leurs comptes et leurs vérifications côté serveur. Les intégrations non documentées sont fragiles et peuvent contrevenir à leurs conditions. Les règles publiques de WeWard exigent une validation manuelle, et Macadam fixe une validation dans l'application avant minuit. Seul un mécanisme officiellement autorisé et vérifié pourra être ajouté avec une preuve de crédit réelle.
+
+### Références techniques
+- [Android WorkManager périodique](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work)
+- [Android exact alarm / permission](https://developer.android.com/develop/background-work/services/alarms)
+- [WeWard validation manuelle](https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses)
+- [Macadam validation avant minuit](https://help.macadam.app/fr/articles/469049-comment-fonctionnent-la-validation-des-pas-et-les-recompenses)
