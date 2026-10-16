@@ -26,10 +26,15 @@ public final class MainActivity extends Activity {
         info.setTextSize(17);
         layout.addView(info);
 
-        addButton(layout, "Autoriser Santé Connect (pas et arrière-plan)", v ->
-            requestPermissions(new String[] {
-                HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND
-            }, 10));
+        addButton(layout, "Autoriser Santé Connect (pas et arrière-plan)", v -> {
+            if (HealthReader.backgroundSupported()) {
+                requestPermissions(new String[] {
+                    HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND
+                }, 10);
+            } else {
+                info.append("\\nAccès en arrière-plan indisponible : mise à jour système nécessaire.");
+            }
+        });
         addButton(layout, "Autoriser les notifications (facultatif)", v ->
             requestPermissions(new String[] { Manifest.permission.POST_NOTIFICATIONS }, 11));
         addButton(layout, "Autoriser les alarmes exactes", v -> {
@@ -80,8 +85,10 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.2\n\n" +
+        info.setText("VALIDATE STEPS 0.3\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
+            "\nSanté Connect arrière-plan pris en charge : " +
+                (HealthReader.backgroundSupported() ? "oui" : "non") +
             "\nAlarme exacte : " + (DailyScheduler.exactAllowed(this) ? "autorisée" : "non autorisée") +
             "\nSanté Connect (arrière-plan) : " + (health ? "autorisée" : "non autorisée") +
             "\n\n" + store.describe() +
