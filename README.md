@@ -1,13 +1,13 @@
-# Validate Steps (v0.2) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.3) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
 ## Fonctionnalités
 - **22:00 heure locale** : `AlarmManager` lance un `BroadcastReceiver`, qui confie la lecture à **WorkManager** (`androidx.work:work-runtime:2.12.0`). L'écran ne s'ouvre pas.
 - Lire uniquement les **pas réels agrégés** de Santé Connect : évite le double comptage entre sources, aucune écriture de pas.
-- Après échec transitoire, **tentatives automatiques toutes les ~12 minutes avant minuit**, sans réveiller l'utilisateur. Les échecs d'autorisation sont signalés, pas masqués.
+- Après échec transitoire, **tentatives automatiques toutes les ~12 minutes avant minuit**, sans réveiller l'utilisateur. Une file WorkManager `APPEND_OR_REPLACE` conserve les nouvelles demandes pendant qu'une lecture précédente est en cours. Les échecs d'autorisation sont signalés, pas masqués.
 - Après redémarrage / changement d'heure ou de fuseau : reprogramme les alarmes et rattrape une lecture manquée après 22 h si encore possible.
-- Evite la lecture en double après un relevé réussi ; journal local : date, pas, nombre de tentatives et état.
+- Chaque alarme transporte une **date d'audit explicite** pour que les retards au-delà de minuit ne lisent jamais les pas du mauvais jour. Evite la lecture en double après un relevé réussi ; journal local : date, pas, nombre de tentatives et état.
 - Fonctionnement local et privé : **aucune permission Internet**, pas de serveur, compte tiers, traçage, root ou injection de pas.
 
 ## Ce qui n'est PAS automatisé
@@ -16,7 +16,7 @@ Une lecture Health Connect **ne crédite pas les pièces** des applications de r
 - **WeWard** impose d'ouvrir l'application et d'appuyer sur « Valider mes pas ». Leur FAQ explique que cela empêche la triche automatisée.
 - **Macadam** impose de valider les pas manuellement avant minuit. Les pas manqués ne sont pas récupérables.
 - **Winwalk** : selon les réponses de son éditeur sur l'App Store, une vidéo récompensée lancée une fois dans la journée permet ensuite de récolter automatiquement les pièces **jusqu'à minuit**. Cette activation nécessite toutefois une ouverture quotidienne ; ce n'est pas une API pour notre application.
-- **Sweatcoin** : suivi et conversion prévus en arrière-plan par Sweatcoin lui-même, sous réserve qu'Android le laisse fonctionner.
+- **Sweatcoin** : suivi et conversion prévus en arrière-plan par Sweatcoin lui-même. Sa propre FAQ Android recommande cependant une ouverture de l'app au moins une fois toutes les 12 heures en cas de difficultés de conversion ; ce n'est donc pas une garantie de zéro ouverture.
 
 Aucun endpoint public de validation « headless » autorisée n'a été établi pour les trois premiers. Nous ne tentons **ni contournement d'authentification, ni invocation d'API privée, ni simulation de pas**, et l'application ne déclare jamais à tort avoir crédité les récompenses.
 
@@ -44,3 +44,19 @@ SDK Android 35, JDK 17, Gradle 8.10.2. Le job GitHub Actions publie un APK de te
 - https://help.sweatco.in/hc/en-us/articles/360012911431-Does-Sweatcoin-count-my-steps-when-it-s-in-the-background
 - https://developer.android.com/health-and-fitness/health-connect/read-data
 - https://developer.android.com/jetpack/androidx/releases/work
+
+
+## Modifications v0.3 (16 octobre 2026)
+- Relances conservées dans une queue séquentielle `APPEND_OR_REPLACE`; une nouvelle lecture ne supprime ni n'interrompt une lecture en attente.
+- Dates des alarmes transmises à WorkManager : si le système diffère l'exécution après minuit, le relevé reste attribué au bon jour (jusqu'à un jour de retard).
+- Travaux trop anciens, malformés ou futurs ignorés au lieu de lire silencieusement les pas du jour courant.
+- Blocage des écritures retardées qui remplaceraient une lecture plus récente.
+- Vérification de la disponibilité du droit Android Santé Connect pour lecture en arrière-plan (Android 15 ou Android 14 avec extension suffisante).
+- Tests unitaires : transition à minuit, demandes anciennes/futures, ordonnancement.
+- Non-objectif délibéré : les pas lus ne deviennent pas automatiquement des pièces créditées sur WeWard, Macadam ou Winwalk.
+
+### Documentation officielle
+- https://developer.android.com/reference/androidx/work/ExistingWorkPolicy
+- https://developer.android.com/reference/android/health/connect/HealthPermissions
+- https://play.google.com/store/apps/details?id=com.winwalk.android
+- https://help.sweatco.in/hc/en-us/articles/360012520012-How-can-I-improve-my-step-conversion-All-Other-Android-Devices
