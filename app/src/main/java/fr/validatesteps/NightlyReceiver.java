@@ -3,16 +3,24 @@ package fr.validatesteps;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import java.time.LocalDate;
 
-/** Tiny no-UI broadcast; worker executes the read, with a safety retry alarm. */
+/** No UI. Each scheduled alarm carries the date it belongs to. */
 public final class NightlyReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
-        if (!new RunStore(context).enabled()) return;
-        // Never depend on this short-lived receiver surviving Health Connect's async call.
+        RunStore store = new RunStore(context);
+        if (!store.enabled() || intent == null) return;
+
+        LocalDate today = LocalDate.now();
+        LocalDate auditedDay = AuditDay.resolve(
+            intent.getStringExtra(DailyScheduler.EXTRA_AUDIT_DATE), today);
+        if (auditedDay == null) return; // Never attribute a stale alarm to today.
+
         DailyScheduler.schedule(context);
-        // Arm fallback before starting a worker, including if Android kills the worker.
-        // The worker cancels this alarm after a successful or permanently unavailable read.
-        DailyScheduler.scheduleRecovery(context, false);
-        AuditWorker.enqueue(context.getApplicationContext());
+        if (auditedDay.equals(today)) {
+            // A safety retry remains scheduled even if Android kills the worker.
+            DailyScheduler.scheduleRecovery(context, false);
+        }
+        AuditWorker.enqueue(context.getApplicationContext(), auditedDay);
     }
 }
