@@ -28,7 +28,7 @@ jobs:
         with:
           gradle-version: '8.10.2'
       - name: Compile and test
-        run: gradle --no-daemon testDebugUnitTest assembleDebug
+        run: gradle --no-daemon lintDebug testDebugUnitTest assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: validate-steps-debug
