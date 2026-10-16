@@ -2,6 +2,8 @@ package fr.validatesteps;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.ext.SdkExtensions;
 import android.health.connect.AggregateRecordsRequest;
 import android.health.connect.AggregateRecordsResponse;
 import android.health.connect.HealthConnectException;
@@ -21,7 +23,21 @@ public final class HealthReader {
         "android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND";
     private HealthReader() {}
 
+    /**
+     * Framework Health Connect background reads require Android 15 or
+     * Android 14 U Extension 13. Otherwise permission requests cannot work.
+     */
+    public static boolean backgroundSupported() {
+        return Build.VERSION.SDK_INT >= 35 ||
+            (Build.VERSION.SDK_INT >= 34 &&
+                SdkExtensions.getExtensionVersion(34) >= 13);
+    }
+
     public static void queryDay(Context context, LocalDate day, BiConsumer<Long, String> result) {
+        if (!backgroundSupported()) {
+            result.accept(null, "background_health_unsupported");
+            return;
+        }
         if (context.checkSelfPermission(READ_STEPS) != PackageManager.PERMISSION_GRANTED ||
             context.checkSelfPermission(READ_BACKGROUND) != PackageManager.PERMISSION_GRANTED) {
             result.accept(null, "permission_missing");
