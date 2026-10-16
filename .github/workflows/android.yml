@@ -15,10 +15,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      # ubuntu-latest already provides Android command-line tools.
-      # Avoid setup-android@v3, which tries to install the retired "tools" package.
-      - name: Android platform
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Locate Android SDK and install platform
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          sdkmanager_bin="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          test -n "$sdkmanager_bin"
+          "$sdkmanager_bin" 'platforms;android-35' 'build-tools;35.0.0'
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
