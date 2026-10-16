@@ -19,6 +19,9 @@ import java.util.concurrent.TimeUnit;
  */
 public final class WatchdogWorker extends Worker {
     private static final String TAG = "step-audit-nightly-fallback";
+    // v0.4 scheduled a periodic worker with this unique name. WorkManager
+    // persists it across APK upgrades, so we must cancel it explicitly.
+    private static final String LEGACY_PERIODIC = "recovery-watchdog";
     private static final String DAY = "scheduled_audit_date";
     private static final String UNIQUE_PREFIX = "step-audit-fallback-";
 
@@ -28,6 +31,7 @@ public final class WatchdogWorker extends Worker {
 
     public static void configure(Context context, boolean enabled, ZonedDateTime next22) {
         WorkManager manager = WorkManager.getInstance(context);
+        manager.cancelUniqueWork(LEGACY_PERIODIC);
         if (!enabled) {
             manager.cancelAllWorkByTag(TAG);
             return;
