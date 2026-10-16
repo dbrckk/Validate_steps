@@ -68,7 +68,8 @@ public final class AuditWorker extends Worker {
 
         boolean isCurrentDay = day.equals(LocalDate.now());
         boolean missingPermission = "permission_missing".equals(status) ||
-            "health_connect_unavailable".equals(status);
+            "health_connect_unavailable".equals(status) ||
+            "background_health_unsupported".equals(status);
         if ("steps_read".equals(status) || missingPermission) {
             if (isCurrentDay) DailyScheduler.cancelRecovery(context);
             Notifier.show(context, day, count, status);
