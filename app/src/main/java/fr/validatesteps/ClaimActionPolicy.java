@@ -1,0 +1,45 @@
+package fr.validatesteps;
+
+import java.text.Normalizer;
+import java.time.ZonedDateTime;
+import java.util.Locale;
+import java.util.Set;
+
+/**
+ * Conservative gate: only provider-supplied, explicitly step-related
+ * notification actions can be sent. Never clicks activities or ads.
+ */
+public final class ClaimActionPolicy {
+    private static final Set<String> PACKAGES = Set.of(
+        "com.weward", "com.macadamapp", "com.winwalk.android");
+    private static final Set<String> ACTIONS = Set.of(
+        "valider mes pas", "valider les pas", "convertir mes pas",
+        "recuperer mes pieces", "recuperer mes points",
+        "reclamer mes pas", "collecter mes pieces",
+        "claim steps", "validate steps", "convert steps",
+        "collect step coins", "collect coins from steps");
+
+    private ClaimActionPolicy() {}
+
+    public static boolean isProvider(String packageName) {
+        return PACKAGES.contains(packageName);
+    }
+
+    public static boolean inTimeWindow(ZonedDateTime now) {
+        return RetryPolicy.canRecover(now);
+    }
+
+    public static boolean eligible(String packageName, String button,
+            boolean isActivity, boolean needsInput, ZonedDateTime time) {
+        return isProvider(packageName) && inTimeWindow(time) &&
+            !isActivity && !needsInput && ACTIONS.contains(normalize(button));
+    }
+
+    private static String normalize(String value) {
+        if (value == null) return "";
+        String plain = Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}+", "");
+        return plain.trim().replaceAll("\\s+", " ")
+            .toLowerCase(Locale.ROOT);
+    }
+}
