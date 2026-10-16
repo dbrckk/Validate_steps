@@ -4,12 +4,13 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import java.time.LocalDate;
 
-/** Local truthful audit state: reading steps never claims external rewards. */
+/** Private local step audit only; never treats measurements as reward credits. */
 public final class RunStore {
     private final SharedPreferences prefs;
     public RunStore(Context context) {
         prefs = context.getSharedPreferences("validate_steps", Context.MODE_PRIVATE);
     }
+
     public boolean enabled() { return prefs.getBoolean("enabled", false); }
 
     public void enable(boolean enabled) {
@@ -21,21 +22,26 @@ public final class RunStore {
             "steps_read".equals(prefs.getString("last_status", ""));
     }
 
-    public void start(LocalDate date) {
-        boolean sameDay = date.toString().equals(prefs.getString("last_date", ""));
+    /** Prevent old delayed requests from overwriting later days or completed reads. */
+    public boolean begin(LocalDate day) {
+        if (AuditDay.isOlderThanRecorded(day, prefs.getString("last_date", "")) ||
+            successfulOn(day)) return false;
+        boolean sameDay = day.toString().equals(prefs.getString("last_date", ""));
         int attempts = sameDay ? prefs.getInt("attempts", 0) + 1 : 1;
-        prefs.edit().putString("last_date", date.toString())
+        return prefs.edit()
+            .putString("last_date", day.toString())
             .putLong("last_executed_at", System.currentTimeMillis())
             .putLong("last_steps", -1)
             .putInt("attempts", attempts)
-            .putString("last_status", "reading").commit();
+            .putString("last_status", "reading")
+            .commit();
     }
 
-    public void finish(LocalDate day, Long steps, String status) {
-        if (!day.toString().equals(prefs.getString("last_date", ""))) return;
-        // Another worker may have already finished a successful read.
-        if (successfulOn(day)) return;
-        prefs.edit().putLong("last_steps", steps == null ? -1 : steps)
+    public boolean finish(LocalDate day, Long steps, String status) {
+        if (!day.toString().equals(prefs.getString("last_date", "")) ||
+            successfulOn(day)) return false;
+        return prefs.edit()
+            .putLong("last_steps", steps == null ? -1 : steps)
             .putString("last_status", status).commit();
     }
 
