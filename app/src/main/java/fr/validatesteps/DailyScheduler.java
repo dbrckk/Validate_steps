@@ -54,12 +54,14 @@ public final class DailyScheduler {
         AlarmManager manager = context.getSystemService(AlarmManager.class);
         manager.cancel(intent(context, DAILY, null));
         boolean enabled = new RunStore(context).enabled();
-        WatchdogWorker.configure(context, enabled);
         if (!enabled) {
+            WatchdogWorker.configure(context, false, null);
             cancelRecovery(context);
             return;
         }
-        set(context, DAILY, TimePlanner.next22(ZonedDateTime.now()));
+        ZonedDateTime next = TimePlanner.next22(ZonedDateTime.now());
+        WatchdogWorker.configure(context, true, next);
+        set(context, DAILY, next);
     }
 
     public static void scheduleRecovery(Context context, boolean rebootCatchup) {
