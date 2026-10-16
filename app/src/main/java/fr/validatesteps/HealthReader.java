@@ -30,7 +30,7 @@ public final class HealthReader {
     public static boolean backgroundSupported() {
         return Build.VERSION.SDK_INT >= 35 ||
             (Build.VERSION.SDK_INT >= 34 &&
-                SdkExtensions.getExtensionVersion(34) >= 13);
+                SdkExtensions.getExtensionVersion(Build.VERSION_CODES.UPSIDE_DOWN_CAKE) >= 13);
     }
 
     public static void queryDay(Context context, LocalDate day, BiConsumer<Long, String> result) {
