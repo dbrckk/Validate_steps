@@ -45,11 +45,11 @@ public final class ActionBridgeState {
     public String summary() {
         String day = prefs.getString("last_inspection", "jamais");
         return "Actions de notification : " + (enabled() ? "activées" : "désactivées") +
-            "\\nDernière inspection : " + day +
-            "\\nWeWard : " + status("com.weward") +
-            "\\nMacadam : " + status("com.macadamapp") +
-            "\\nWinwalk : " + status("com.winwalk.android") +
-            "\\nAucune action envoyée ne prouve un crédit de récompense.";
+            "\nDernière inspection : " + day +
+            "\nWeWard : " + status("com.weward") +
+            "\nMacadam : " + status("com.macadamapp") +
+            "\nWinwalk : " + status("com.winwalk.android") +
+            "\nAucune action envoyée ne prouve un crédit de récompense.";
     }
 
     private String status(String packageName) {
