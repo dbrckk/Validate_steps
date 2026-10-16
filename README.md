@@ -85,7 +85,8 @@ Les fournisseurs gèrent leurs comptes et leurs vérifications côté serveur. L
 - L'ancien `PeriodicWorkRequest` (une vérification environ toutes les 30 minutes, y compris hors de la plage utile) est remplacé par **deux `OneTimeWorkRequest` datés** à 22 h 20 et 23 h 15, en complément de l'alarme de 22 h.
 - Les contrôles de secours sont associés à une **date locale précise**. Ils ne font aucune lecture s'ils sont exécutés en retard un autre jour, ou si la lecture a déjà réussi.
 - Chaque secours utilise le calcul des instants réels, y compris en cas de passage à l'heure d'hiver. Quand le planning est réarmé, les deux demandes sont mises à jour sans créer de doublons.
-- La désactivation annule les tâches de secours ; aucune interface n'est ouverte lors de leurs exécutions.
+- La désactivation annule les tâches de secours ; aucune interface n'est ouverte lors de leurs exécutions. Lors d'une mise à jour depuis la v0.4, l'ancien travail périodique nommé `recovery-watchdog` est explicitement annulé (migration des tâches persistantes).
+- Les secours réarment eux-mêmes le planning du lendemain : une alarme principale manquée ne désactive pas définitivement les secours du jour suivant.
 - **Limite Android** : WorkManager exécute ces deux tâches dès que le système le permet ; les heures exactes ne sont pas garanties. Un téléphone éteint ou un processus arrêté de force ne peut pas être réveillé par magie.
 
 ### Provenance et conformité des pas
