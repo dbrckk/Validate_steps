@@ -59,6 +59,9 @@ public final class WatchdogWorker extends Worker {
         RunStore store = new RunStore(context);
         LocalDate today = LocalDate.now();
         LocalDate scheduled = AuditDay.resolve(getInputData().getString(DAY), today);
+        // Re-arm tomorrow even if the 22:00 AlarmManager broadcast was dropped.
+        // The next two fallbacks are scheduled once for that future date.
+        if (store.enabled()) DailyScheduler.schedule(context);
         // A delayed fallback must never attribute yesterday's steps to today.
         if (scheduled == null || !scheduled.equals(today)) return Result.success();
         if (CatchupPolicy.shouldAttempt(ZonedDateTime.now(), store.enabled(),
