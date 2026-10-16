@@ -85,8 +85,9 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.3\n\n" +
+        info.setText("VALIDATE STEPS 0.4\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
+            "\nSurveillance de secours : " + (store.enabled() ? "active (30 min, heure approximative)" : "inactive") +
             "\nSanté Connect arrière-plan pris en charge : " +
                 (HealthReader.backgroundSupported() ? "oui" : "non") +
             "\nAlarme exacte : " + (DailyScheduler.exactAllowed(this) ? "autorisée" : "non autorisée") +

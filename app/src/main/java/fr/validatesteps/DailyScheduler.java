@@ -53,7 +53,9 @@ public final class DailyScheduler {
     public static void schedule(Context context) {
         AlarmManager manager = context.getSystemService(AlarmManager.class);
         manager.cancel(intent(context, DAILY, null));
-        if (!new RunStore(context).enabled()) {
+        boolean enabled = new RunStore(context).enabled();
+        WatchdogWorker.configure(context, enabled);
+        if (!enabled) {
             cancelRecovery(context);
             return;
         }

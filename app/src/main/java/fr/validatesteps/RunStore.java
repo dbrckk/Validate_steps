@@ -22,6 +22,15 @@ public final class RunStore {
             "steps_read".equals(prefs.getString("last_status", ""));
     }
 
+    /** No pointless background reads after a permission/platform failure that needs user action. */
+    public boolean permanentlyUnavailableOn(LocalDate day) {
+        if (!day.toString().equals(prefs.getString("last_date", ""))) return false;
+        String status = prefs.getString("last_status", "");
+        return "permission_missing".equals(status) ||
+            "background_health_unsupported".equals(status) ||
+            "health_connect_unavailable".equals(status);
+    }
+
     /** Prevent old delayed requests from overwriting later days or completed reads. */
     public boolean begin(LocalDate day) {
         if (AuditDay.isOlderThanRecorded(day, prefs.getString("last_date", "")) ||
