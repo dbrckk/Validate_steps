@@ -8,7 +8,9 @@ import android.content.Context;
 import android.content.pm.PackageManager;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 /**
@@ -76,6 +78,11 @@ public final class RewardActionListener extends NotificationListenerService {
         if (sbn == null || !ClaimActionPolicy.isProvider(sbn.getPackageName()) ||
             !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now())) return;
 
+        // Never trigger an old notification re-shown after a day boundary.
+        LocalDate postedDay = Instant.ofEpochMilli(sbn.getPostTime())
+            .atZone(ZoneId.systemDefault()).toLocalDate();
+        if (!LocalDate.now().equals(postedDay)) return;
+
         ActionBridgeState store = new ActionBridgeState(this);
         if (!store.enabled() || store.alreadyAttempted(
                 sbn.getPackageName(), LocalDate.now())) return;
@@ -85,6 +92,10 @@ public final class RewardActionListener extends NotificationListenerService {
         for (Notification.Action action : notification.actions) {
             if (action == null || action.actionIntent == null) continue;
             boolean activity = action.actionIntent.isActivity();
+            boolean backgroundType = action.actionIntent.isBroadcast() ||
+                action.actionIntent.isService() ||
+                action.actionIntent.isForegroundService();
+            if (!backgroundType) continue;
             boolean input = action.getRemoteInputs() != null &&
                 action.getRemoteInputs().length > 0;
             if (!ClaimActionPolicy.eligible(sbn.getPackageName(),
