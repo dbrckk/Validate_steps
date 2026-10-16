@@ -1,4 +1,4 @@
-# Validate Steps (v0.5) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.6) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -96,3 +96,31 @@ Sources techniques :
 - https://developer.android.com/reference/androidx/work/OneTimeWorkRequest
 - https://developer.android.com/reference/androidx/work/ExistingWorkPolicy
 - https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work
+
+
+## v0.6 — Essai sans interface via actions des notifications (optionnel)
+
+Nouvelle fonction **expérimentale et désactivée par défaut**. Sans contacter aucun fournisseur, Android offre une voie potentiellement sans écran : certains éditeurs publient dans leurs notifications des **actions directes** (objet `Notification.Action` lié à un `PendingIntent`). Une fois l'autorisation Android accordée, notre `NotificationListenerService` peut inspecter ces actions puis envoyer celles qui satisfont une politique restrictive.
+
+**Conditions strictes avant tout envoi :**
+- L'utilisateur doit activer volontairement le module dans Validate Steps et autoriser l'accès aux notifications dans les réglages Android. La permission est sensible car Android la présente comme un accès potentiellement global aux notifications. Notre code filtre les seuls packages `com.weward`, `com.macadamapp`, `com.winwalk.android` avant d'accéder aux actions ; aucun texte de notification n'est enregistré.
+- Entre **22:00 et 23:40 heure locale** uniquement : lors de la réception d'une notification, à la connexion du service, à l'alarme de 22 h et aux secours.
+- Le bouton doit avoir un **intitulé explicite** relatif à la récupération / validation de pas ou pièces. Pas de bouton « ouvrir », « regarder une publicité », « acheter », ni d'action réclamant une saisie.
+- L'objet `PendingIntent` ne doit pas être déclaré comme ouvrant une `Activity`. Cette vérification réduit le risque d'ouverture d'écran, sans garantir qu'une application tierce ne lancera pas un écran depuis son propre code.
+- **Un seul essai par fournisseur et par date**. L'application distingue `action_envoyee_non_confirmee`, `action_annulee` et `erreur_envoi`. Aucun solde ni crédit de récompenses n'est inventé.
+
+**Limitation fondamentale :** nous n'avons pas constaté de notification contenant une action de validation directe sur un téléphone réel. WeWard documente notamment des *rappels* invitant à ouvrir l'app. Macadam et Winwalk ne documentent pas non plus un tel `PendingIntent` de validation. L'option pourrait donc ne trouver **aucun bouton compatible** : le fonctionnement 100 % autonome des récompenses **n'est pas démontré**. Santé Connect ne crédite pas les pièces externes.
+
+### Mise en route sur Android 15
+1. Installer la v0.6 et garder le relevé autonome 22 h activé.
+2. Dans Validate Steps : « Autoriser l'accès aux notifications dans Android », puis autoriser **Validate Steps** dans la liste système.
+3. Activer « Essai d'actions directes (sans écran) ». Les essais sont ensuite autonomes dans la fenêtre nocturne.
+4. Observer le résultat dans Validate Steps le lendemain. Le statut « action envoyée » **ne signifie pas** « récompense créditée » : seul le solde confirmé dans la vraie application peut le démontrer.
+
+**Ce que ce module ne fait pas :** contourner publicité / CAPTCHA / authentification, utiliser des API privées, ouvrir automatiquement les interfaces, fabriquer des pas ou garantir l'encaissement contre les règles du fournisseur. Pour Winwalk, une éventuelle vidéo quotidienne n'est ni lancée ni simulée. Sweatcoin continue à convertir ses pas par son propre mécanisme de fond.
+
+### Références
+- Android NotificationListenerService : https://developer.android.com/reference/android/service/notification/NotificationListenerService
+- Android PendingIntent : https://developer.android.com/reference/android/app/PendingIntent
+- WeWard validation manuelle : https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses
+- WeWard rappels : https://faq.weward.fr/hc/fr/articles/28123570360338-Activer-le-rappel-de-validation-des-pas

@@ -52,6 +52,17 @@ public final class MainActivity extends Activity {
             HealthReader.queryDay(this, LocalDate.now(), (steps, status) ->
                 info.append("\n\nTEST (sans gain de pièces) : " +
                     (steps == null ? status : steps + " pas détectés"))));
+        addButton(layout, "Autoriser l'accès aux notifications dans Android", v ->
+            startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        addButton(layout, "Activer l'essai d'actions directes (sans écran)", v -> {
+            new ActionBridgeState(this).enable(true);
+            RewardActionListener.inspectConnectedNow();
+            refresh();
+        });
+        addButton(layout, "Désactiver les actions directes", v -> {
+            new ActionBridgeState(this).enable(false);
+            refresh();
+        });
         addButton(layout, "Désactiver et annuler les alarmes", v -> {
             new RunStore(this).enable(false);
             DailyScheduler.schedule(this);
@@ -85,14 +96,17 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.5\n\n" +
+        info.setText("VALIDATE STEPS 0.6\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
             "\nSurveillance de secours : " + (store.enabled() ? "2 contrôles planifiés (22 h 20 / 23 h 15)" : "inactive") +
             "\nSanté Connect arrière-plan pris en charge : " +
                 (HealthReader.backgroundSupported() ? "oui" : "non") +
             "\nAlarme exacte : " + (DailyScheduler.exactAllowed(this) ? "autorisée" : "non autorisée") +
             "\nSanté Connect (arrière-plan) : " + (health ? "autorisée" : "non autorisée") +
+            "\nAccès notifications Android : " +
+                (RewardActionListener.hasPermission(this) ? "autorisé" : "non autorisé") +
             "\n\n" + store.describe() +
+            "\n\n" + new ActionBridgeState(this).summary() +
             "\n\nLa lecture s'effectue sans ouvrir d'application. Ce relevé ne valide " +
             "PAS les pièces WeWard, Macadam ou Winwalk. Sweatcoin est géré " +
             "indépendamment par sa propre application.");
