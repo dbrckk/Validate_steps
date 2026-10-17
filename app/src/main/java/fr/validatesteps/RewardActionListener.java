@@ -5,7 +5,6 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import java.time.Instant;
@@ -14,34 +13,43 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 /**
- * Optional notification-action bridge.
- *
- * Only sends a third-party notification's provider-created, non-Activity,
- * exact step-claim action after the user opts in and grants Notification
- * Access. No credentials, private APIs, UI taps or fake steps.
- *
- * A PendingIntent send merely means DISPATCHED; the provider may reject the
- * claim and no reward is declared credited without provider proof.
+ * Opt-in notification diagnostics and direct, provider-created background actions.
+ * No message text, passwords, advertising or account data are ever recorded.
+ * A sent PendingIntent does NOT prove reward settlement in the provider account.
  */
 public final class RewardActionListener extends NotificationListenerService {
     private static volatile RewardActionListener active;
 
     public static boolean hasPermission(Context context) {
         NotificationManager manager = context.getSystemService(NotificationManager.class);
-        return manager.isNotificationListenerAccessGranted(
+        return manager != null && manager.isNotificationListenerAccessGranted(
             new ComponentName(context, RewardActionListener.class));
     }
 
-    /** Best-effort immediate scan from our 22:00 alarm / fallback workers. */
+    /** Called by alarm and fallback; actions are gated by time and consent. */
     public static void inspectConnectedNow() {
         RewardActionListener instance = active;
-        if (instance != null) instance.inspectActiveNotifications();
+        if (instance != null) instance.inspectActiveNotifications(true);
+    }
+
+    /**
+     * A manual diagnostics scan NEVER triggers a third-party PendingIntent.
+     * Reports whether the listener is connected and collects classifications only.
+     */
+    public static boolean diagnoseConnectedNow(Context context) {
+        RewardActionListener instance = active;
+        if (instance == null) {
+            new ActionBridgeState(context).inspected(false);
+            return false;
+        }
+        instance.inspectActiveNotifications(false);
+        return true;
     }
 
     @Override public void onListenerConnected() {
         super.onListenerConnected();
         active = this;
-        inspectActiveNotifications();
+        inspectActiveNotifications(true);
     }
 
     @Override public void onListenerDisconnected() {
@@ -55,64 +63,78 @@ public final class RewardActionListener extends NotificationListenerService {
     }
 
     @Override public void onNotificationPosted(StatusBarNotification notification) {
-        inspect(notification);
+        inspect(notification, true);
     }
 
-    private void inspectActiveNotifications() {
-        if (!new ActionBridgeState(this).enabled()) return;
-        if (!ClaimActionPolicy.inTimeWindow(ZonedDateTime.now())) return;
+    private void inspectActiveNotifications(boolean allowDispatch) {
+        ActionBridgeState store = new ActionBridgeState(this);
         try {
             StatusBarNotification[] notifications = getActiveNotifications();
             if (notifications != null) {
-                for (StatusBarNotification notification : notifications) {
-                    inspect(notification);
+                for (StatusBarNotification item : notifications) {
+                    inspect(item, allowDispatch);
                 }
             }
-            new ActionBridgeState(this).inspected();
-        } catch (RuntimeException ignored) {
-            // Listener disconnected during a scan or system temporarily unavailable.
+            store.inspected(true);
+        } catch (RuntimeException disconnected) {
+            store.inspected(false);
         }
     }
 
-    private synchronized void inspect(StatusBarNotification sbn) {
-        if (sbn == null || !ClaimActionPolicy.isProvider(sbn.getPackageName()) ||
-            !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now())) return;
+    private synchronized void inspect(StatusBarNotification sbn, boolean allowDispatch) {
+        if (sbn == null || !ClaimActionPolicy.isProvider(sbn.getPackageName())) return;
+        ActionBridgeState store = new ActionBridgeState(this);
+        String packageName = sbn.getPackageName();
 
-        // Never trigger an old notification re-shown after a day boundary.
+        // Do not replay an old notification into a new daily reward window.
+        LocalDate day = LocalDate.now();
         LocalDate postedDay = Instant.ofEpochMilli(sbn.getPostTime())
             .atZone(ZoneId.systemDefault()).toLocalDate();
-        if (!LocalDate.now().equals(postedDay)) return;
-
-        ActionBridgeState store = new ActionBridgeState(this);
-        if (!store.enabled() || store.alreadyAttempted(
-                sbn.getPackageName(), LocalDate.now())) return;
+        if (!day.equals(postedDay)) {
+            store.noteSeen(packageName, "notification_ancienne");
+            return;
+        }
 
         Notification notification = sbn.getNotification();
-        if (notification == null || notification.actions == null) return;
+        if (notification == null || notification.actions == null ||
+            notification.actions.length == 0) {
+            store.noteSeen(packageName, "notification_sans_bouton");
+            return;
+        }
+
+        String observed = "notification_sans_bouton";
         for (Notification.Action action : notification.actions) {
             if (action == null || action.actionIntent == null) continue;
-            boolean activity = action.actionIntent.isActivity();
-            boolean backgroundType = action.actionIntent.isBroadcast() ||
-                action.actionIntent.isService() ||
-                action.actionIntent.isForegroundService();
-            if (!backgroundType) continue;
-            boolean input = action.getRemoteInputs() != null &&
+            PendingIntent pending = action.actionIntent;
+            boolean opensActivity = pending.isActivity();
+            boolean isBackgroundType = pending.isBroadcast() ||
+                pending.isService() || pending.isForegroundService();
+            boolean requiresInput = action.getRemoteInputs() != null &&
                 action.getRemoteInputs().length > 0;
-            if (!ClaimActionPolicy.eligible(sbn.getPackageName(),
-                    action.title == null ? "" : action.title.toString(),
-                    activity, input, ZonedDateTime.now())) continue;
+            String label = action.title == null ? "" : action.title.toString();
+            String diagnostic = ClaimActionPolicy.classify(packageName,
+                label, opensActivity, isBackgroundType, requiresInput);
+            observed = diagnostic;
 
-            LocalDate day = LocalDate.now();
-            if (!store.reserve(sbn.getPackageName(), day)) return;
+            if (!"action_directe_compatible".equals(diagnostic)) continue;
+            store.noteSeen(packageName, diagnostic);
+            if (!allowDispatch || !new RunStore(this).enabled() ||
+                !store.enabled() || !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now()) ||
+                store.alreadyAttempted(packageName, day)) return;
+            // Same strict label test that is exercised in the unit tests.
+            if (!ClaimActionPolicy.eligible(packageName, label,
+                    opensActivity, requiresInput, ZonedDateTime.now())) return;
+            if (!store.reserve(packageName, day)) return;
             try {
-                action.actionIntent.send();
-                store.record(sbn.getPackageName(), "action_envoyee_non_confirmee");
+                pending.send();
+                store.record(packageName, "action_envoyee_credit_non_confirme");
             } catch (PendingIntent.CanceledException cancelled) {
-                store.record(sbn.getPackageName(), "action_annulee");
-            } catch (RuntimeException problem) {
-                store.record(sbn.getPackageName(), "erreur_envoi");
+                store.record(packageName, "action_annulee");
+            } catch (RuntimeException error) {
+                store.record(packageName, "erreur_declenchement");
             }
-            return; // At most ONE attempt per provider per day.
+            return;
         }
+        store.noteSeen(packageName, observed);
     }
 }

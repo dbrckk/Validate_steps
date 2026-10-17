@@ -5,6 +5,12 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_IN_BACKGROUND" />
+    <!-- Android 11+ package visibility limited to the three supported providers. -->
+    <queries>
+        <package android:name="com.weward" />
+        <package android:name="com.macadamapp" />
+        <package android:name="com.winwalk.android" />
+    </queries>
     <application android:allowBackup="false" android:label="Validate Steps"
                  android:icon="@android:drawable/ic_menu_today"
                  android:supportsRtl="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">

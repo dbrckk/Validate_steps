@@ -29,6 +29,20 @@ public final class ClaimActionPolicy {
         return RetryPolicy.canRecover(now);
     }
 
+    /**
+     * Diagnostic classifications contain no notification text or account data.
+     * Detection is independent of 22:00; execution still requires the window.
+     */
+    public static String classify(String packageName, String button,
+            boolean isActivity, boolean isBackgroundType, boolean needsInput) {
+        if (!isProvider(packageName)) return "service_non_pris_en_charge";
+        if (needsInput) return "action_avec_saisie";
+        if (isActivity) return "action_ouvrant_interface";
+        if (!isBackgroundType) return "type_action_non_pris_en_charge";
+        return ACTIONS.contains(normalize(button))
+            ? "action_directe_compatible" : "libelle_action_non_reconnu";
+    }
+
     public static boolean eligible(String packageName, String button,
             boolean isActivity, boolean needsInput, ZonedDateTime time) {
         return isProvider(packageName) && inTimeWindow(time) &&
