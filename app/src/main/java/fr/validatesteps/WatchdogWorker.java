@@ -59,16 +59,22 @@ public final class WatchdogWorker extends Worker {
         RunStore store = new RunStore(context);
         LocalDate today = LocalDate.now();
         LocalDate scheduled = AuditDay.resolve(getInputData().getString(DAY), today);
+        NightTimeline timeline = new NightTimeline(context);
+        timeline.add(NightTimeline.Event.WATCHDOG_RECEIVED, scheduled);
         // Re-arm tomorrow even if the 22:00 AlarmManager broadcast was dropped.
         // The next two fallbacks are scheduled once for that future date.
         if (store.enabled()) DailyScheduler.schedule(context);
         RewardActionListener.ensureConnected(context);
         RewardActionListener.inspectConnectedNow();
         // A delayed fallback must never attribute yesterday's steps to today.
-        if (scheduled == null || !scheduled.equals(today)) return Result.success();
+        if (scheduled == null || !scheduled.equals(today)) {
+            timeline.add(NightTimeline.Event.WATCHDOG_IGNORED, scheduled);
+            return Result.success();
+        }
         if (CatchupPolicy.shouldAttempt(ZonedDateTime.now(), store.enabled(),
                 store.successfulOn(today), store.permanentlyUnavailableOn(today))) {
             AuditWorker.enqueue(context, today);
+            timeline.add(NightTimeline.Event.WATCHDOG_ENQUEUED, today);
         }
         return Result.success();
     }
