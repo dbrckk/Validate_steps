@@ -21,16 +21,22 @@ public final class ActionBridgeState {
     }
 
     public boolean alreadyAttempted(String packageName, LocalDate day) {
-        return day.toString().equals(prefs.getString("date_" + packageName, ""));
+        return !ClaimRetryPolicy.allowed(day,
+            prefs.getString("date_" + packageName, ""),
+            prefs.getString("status_" + packageName, ""),
+            prefs.getInt("attempts_" + packageName, 0));
     }
 
     /** A claimed dispatch is reserved before sending to prevent double execution. */
     public boolean reserve(String packageName, LocalDate day) {
         if (!ClaimActionPolicy.isProvider(packageName) ||
             alreadyAttempted(packageName, day)) return false;
+        int tries = day.toString().equals(prefs.getString("date_" + packageName, ""))
+            ? prefs.getInt("attempts_" + packageName, 0) + 1 : 1;
         return prefs.edit()
             .putString("date_" + packageName, day.toString())
             .putString("status_" + packageName, "dispatching")
+            .putInt("attempts_" + packageName, tries)
             .commit();
     }
 
@@ -74,7 +80,8 @@ public final class ActionBridgeState {
             "notification " + seen + ", " +
                 prefs.getString("category_" + packageName, "inconnue");
         String attempted = prefs.getString("date_" + packageName, "");
-        if (!attempted.isEmpty()) diagnostic += ", tentative " + attempted + " : " +
+        if (!attempted.isEmpty()) diagnostic += ", tentatives " + attempted + " : " +
+            prefs.getInt("attempts_" + packageName, 1) + ", " +
             prefs.getString("status_" + packageName, "inconnue");
         return diagnostic;
     }
