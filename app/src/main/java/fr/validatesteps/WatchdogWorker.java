@@ -62,6 +62,7 @@ public final class WatchdogWorker extends Worker {
         // Re-arm tomorrow even if the 22:00 AlarmManager broadcast was dropped.
         // The next two fallbacks are scheduled once for that future date.
         if (store.enabled()) DailyScheduler.schedule(context);
+        RewardActionListener.ensureConnected(context);
         RewardActionListener.inspectConnectedNow();
         // A delayed fallback must never attribute yesterday's steps to today.
         if (scheduled == null || !scheduled.equals(today)) return Result.success();
