@@ -17,6 +17,7 @@ public final class NightlyReceiver extends BroadcastReceiver {
         if (auditedDay == null) return; // Never attribute a stale alarm to today.
 
         DailyScheduler.schedule(context);
+        RewardActionListener.ensureConnected(context);
         RewardActionListener.inspectConnectedNow();
         if (auditedDay.equals(today)) {
             // A safety retry remains scheduled even if Android kills the worker.
