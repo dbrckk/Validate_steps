@@ -1,4 +1,4 @@
-# Validate Steps (v0.8) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.9) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -155,3 +155,14 @@ Nouvelle fonction **expérimentale et désactivée par défaut**. Sans contacter
 - Tests unitaires de la politique de relance ; signature `PendingIntent` strictement limitée aux services et diffusions côté politique et appelant.
 
 **Limite** : la reconnexion dépend des restrictions du système. Les notifications des applications tierces peuvent ne comporter aucun bouton direct de conversion de pas. Un statut « action envoyée » ne signifie pas « récompense créditée ». Ni le code Android ni Santé Connect ne peuvent attester d'un solde tiers sans preuve du fournisseur.
+
+
+## v0.9 — Origine des actions vérifiée et installation mobile simplifiée
+
+- **Sécurité :** avant de toucher à un `PendingIntent` contenu dans une notification WeWard, Macadam ou Winwalk, le pont exige que `getCreatorPackage()` soit exactement le package de la notification et que `getCreatorUid()` corresponde à `StatusBarNotification.getUid()`. Les informations sont fournies par Android, pas par le texte de la notification. L'action est ignorée si son origine est absente ou différente.
+- **Diagnostic privé :** le code local `origine_action_non_verifiee` indique un refus ; aucune notification complète, identité de compte ou donnée de santé n'est transmise.
+- **Ergonomie :** les boutons et diagnostics peuvent désormais défiler dans un `ScrollView` sur un petit écran Android. Correction de l'affichage du message d'accès Santé Connect.
+- **Tests unitaires :** origine correcte, paquet falsifié/délégué, UID différent, profil Android secondaire et origine inconnue ; priorité du diagnostic en cas de refus.
+- **Limite majeure :** cette sécurisation ne démontre pas l'existence de boutons de validation directs dans les applications tierces et **ne prouve aucun crédit**. Le module expérimental reste désactivé tant que l'utilisateur ne l'a pas autorisé dans Android et dans Validate Steps.
+
+[Documentation Android sur l'identité d'un `PendingIntent`](https://developer.android.com/reference/android/app/PendingIntent#getCreatorPackage()) : le package et l'UID sont vérifiés par le système et identifient **l'émetteur du PendingIntent**, pas nécessairement l'application qui l'a relayé.
