@@ -44,9 +44,9 @@ public final class ClaimActionPolicy {
     }
 
     public static boolean eligible(String packageName, String button,
-            boolean isActivity, boolean needsInput, ZonedDateTime time) {
+            boolean isActivity, boolean isBackgroundType, boolean needsInput, ZonedDateTime time) {
         return isProvider(packageName) && inTimeWindow(time) &&
-            !isActivity && !needsInput && ACTIONS.contains(normalize(button));
+            !isActivity && isBackgroundType && !needsInput && ACTIONS.contains(normalize(button));
     }
 
     private static String normalize(String value) {

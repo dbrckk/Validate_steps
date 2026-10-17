@@ -63,11 +63,15 @@ public final class RewardActionListener extends NotificationListenerService {
     }
 
     @Override public void onNotificationPosted(StatusBarNotification notification) {
+        if (!new ActionBridgeState(this).enabled()) return;
         inspect(notification, true);
     }
 
     private void inspectActiveNotifications(boolean allowDispatch) {
         ActionBridgeState store = new ActionBridgeState(this);
+        // No automatic reading of notifications unless explicitly enabled.
+        // A manual diagnostic scan is the only exception.
+        if (allowDispatch && !store.enabled()) return;
         try {
             StatusBarNotification[] notifications = getActiveNotifications();
             if (notifications != null) {
@@ -123,7 +127,7 @@ public final class RewardActionListener extends NotificationListenerService {
                 store.alreadyAttempted(packageName, day)) return;
             // Same strict label test that is exercised in the unit tests.
             if (!ClaimActionPolicy.eligible(packageName, label,
-                    opensActivity, requiresInput, ZonedDateTime.now())) return;
+                    opensActivity, isBackgroundType, requiresInput, ZonedDateTime.now())) return;
             if (!store.reserve(packageName, day)) return;
             try {
                 pending.send();
