@@ -26,6 +26,20 @@ public final class RewardActionListener extends NotificationListenerService {
             new ComponentName(context, RewardActionListener.class));
     }
 
+    /**
+     * Android may unbind the notification listener when the device restarts
+     * or when it reclaims the process. Rebind only with explicit user consent.
+     */
+    public static void ensureConnected(Context context) {
+        if (!new ActionBridgeState(context).enabled() ||
+            !hasPermission(context) || active != null) return;
+        try {
+            requestRebind(new ComponentName(context, RewardActionListener.class));
+        } catch (RuntimeException ignored) {
+            // Will try again on another scheduled event or system rebind.
+        }
+    }
+
     /** Called by alarm and fallback; actions are gated by time and consent. */
     public static void inspectConnectedNow() {
         RewardActionListener instance = active;
@@ -54,7 +68,9 @@ public final class RewardActionListener extends NotificationListenerService {
 
     @Override public void onListenerDisconnected() {
         if (active == this) active = null;
+        new ActionBridgeState(this).inspected(false);
         super.onListenerDisconnected();
+        ensureConnected(this);
     }
 
     @Override public void onDestroy() {

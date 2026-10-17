@@ -8,6 +8,7 @@ import android.content.Intent;
 public final class BootReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         DailyScheduler.schedule(context);
+        RewardActionListener.ensureConnected(context);
         // Recover missed 22:00 audit after a late restart, before the date changes.
         DailyScheduler.scheduleRecovery(context, true);
     }
