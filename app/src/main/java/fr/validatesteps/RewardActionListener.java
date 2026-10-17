@@ -123,7 +123,7 @@ public final class RewardActionListener extends NotificationListenerService {
                 store.alreadyAttempted(packageName, day)) return;
             // Same strict label test that is exercised in the unit tests.
             if (!ClaimActionPolicy.eligible(packageName, label,
-                    opensActivity, requiresInput, ZonedDateTime.now())) return;
+                    opensActivity, isBackgroundType, requiresInput, ZonedDateTime.now())) return;
             if (!store.reserve(packageName, day)) return;
             try {
                 pending.send();
