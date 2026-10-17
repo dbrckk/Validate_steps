@@ -54,10 +54,19 @@ public final class MainActivity extends Activity {
                     (steps == null ? status : steps + " pas détectés"))));
         addButton(layout, "Autoriser l'accès aux notifications dans Android", v ->
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        addButton(layout, "Activer l'essai d'actions directes (sans écran)", v -> {
-            new ActionBridgeState(this).enable(true);
-            RewardActionListener.inspectConnectedNow();
+        addButton(layout, "Diagnostiquer les actions maintenant (sans envoyer)", v -> {
+            RewardActionListener.diagnoseConnectedNow(this);
             refresh();
+        });
+        addButton(layout, "Activer les actions directes sans écran", v -> {
+            if (RewardActionListener.hasPermission(this)) {
+                new ActionBridgeState(this).enable(true);
+                RewardActionListener.inspectConnectedNow();
+                refresh();
+            } else {
+                refresh();
+                info.append("\nAutorise d'abord l'accès aux notifications dans Android.");
+            }
         });
         addButton(layout, "Désactiver les actions directes", v -> {
             new ActionBridgeState(this).enable(false);
@@ -65,6 +74,7 @@ public final class MainActivity extends Activity {
         });
         addButton(layout, "Désactiver et annuler les alarmes", v -> {
             new RunStore(this).enable(false);
+            new ActionBridgeState(this).enable(false);
             DailyScheduler.schedule(this);
             refresh();
         });
@@ -96,7 +106,7 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.6\n\n" +
+        info.setText("VALIDATE STEPS 0.7\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
             "\nSurveillance de secours : " + (store.enabled() ? "2 contrôles planifiés (22 h 20 / 23 h 15)" : "inactive") +
             "\nSanté Connect arrière-plan pris en charge : " +
@@ -105,6 +115,7 @@ public final class MainActivity extends Activity {
             "\nSanté Connect (arrière-plan) : " + (health ? "autorisée" : "non autorisée") +
             "\nAccès notifications Android : " +
                 (RewardActionListener.hasPermission(this) ? "autorisé" : "non autorisé") +
+            "\n" + ProviderPackages.diagnostic(this) +
             "\n\n" + store.describe() +
             "\n\n" + new ActionBridgeState(this).summary() +
             "\n\nLa lecture s'effectue sans ouvrir d'application. Ce relevé ne valide " +
