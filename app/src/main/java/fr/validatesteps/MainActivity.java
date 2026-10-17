@@ -10,6 +10,7 @@ import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import java.time.LocalDate;
 
@@ -32,7 +33,7 @@ public final class MainActivity extends Activity {
                     HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND
                 }, 10);
             } else {
-                info.append("\\nAccès en arrière-plan indisponible : mise à jour système nécessaire.");
+                info.append("\nAccès en arrière-plan indisponible : mise à jour système nécessaire.");
             }
         });
         addButton(layout, "Autoriser les notifications (facultatif)", v ->
@@ -79,7 +80,10 @@ public final class MainActivity extends Activity {
             DailyScheduler.schedule(this);
             refresh();
         });
-        setContentView(layout);
+        ScrollView scroller = new ScrollView(this);
+        scroller.setFillViewport(true);
+        scroller.addView(layout);
+        setContentView(scroller);
         refresh();
     }
 
@@ -107,7 +111,7 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.8\n\n" +
+        info.setText("VALIDATE STEPS 0.9\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
             "\nSurveillance de secours : " + (store.enabled() ? "2 contrôles planifiés (22 h 20 / 23 h 15)" : "inactive") +
             "\nSanté Connect arrière-plan pris en charge : " +
