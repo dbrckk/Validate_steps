@@ -6,6 +6,7 @@ public final class ObservationRank {
 
     public static int score(String category) {
         if ("action_directe_compatible".equals(category)) return 6;
+        if ("origine_action_non_verifiee".equals(category)) return 5;
         if ("action_ouvrant_interface".equals(category)) return 5;
         if ("action_avec_saisie".equals(category)) return 4;
         if ("libelle_action_non_reconnu".equals(category)) return 3;

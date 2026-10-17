@@ -22,7 +22,7 @@ public final class ClaimActionPolicy {
     private ClaimActionPolicy() {}
 
     public static boolean isProvider(String packageName) {
-        return PACKAGES.contains(packageName);
+        return packageName != null && PACKAGES.contains(packageName);
     }
 
     public static boolean inTimeWindow(ZonedDateTime now) {

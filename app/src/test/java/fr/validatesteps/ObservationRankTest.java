@@ -4,6 +4,14 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 
 public final class ObservationRankTest {
+    @Test public void untrustedActionOriginIsVisibleButNeverOverridesCompatibleAction() {
+        assertEquals(5, ObservationRank.score("origine_action_non_verifiee"));
+        assertEquals("origine_action_non_verifiee",
+            ObservationRank.strongest("notification_sans_bouton", "origine_action_non_verifiee"));
+        assertEquals("action_directe_compatible",
+            ObservationRank.strongest("action_directe_compatible", "origine_action_non_verifiee"));
+    }
+
     @Test public void noButtonCannotHidePreviouslyEligibleAction() {
         assertEquals("action_directe_compatible",
             ObservationRank.strongest("action_directe_compatible",

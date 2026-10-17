@@ -57,6 +57,12 @@ public final class ClaimActionPolicyTest {
             "com.weward", "Valider mes pas", false, false, false, at(22, 0)));
     }
 
+    @Test public void missingProviderPackageFailsClosedWithoutException() {
+        assertFalse(ClaimActionPolicy.isProvider(null));
+        assertFalse(ClaimActionPolicy.eligible(null, "Valider mes pas", false,
+            true, false, at(22, 0)));
+    }
+
     @Test public void sweatcoinNotTouchedByNotificationBridge() {
         assertFalse(ClaimActionPolicy.isProvider("in.sweatco.app"));
     }
