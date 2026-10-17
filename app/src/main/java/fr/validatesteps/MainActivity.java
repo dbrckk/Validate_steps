@@ -61,6 +61,7 @@ public final class MainActivity extends Activity {
         addButton(layout, "Activer les actions directes sans écran", v -> {
             if (RewardActionListener.hasPermission(this)) {
                 new ActionBridgeState(this).enable(true);
+                RewardActionListener.ensureConnected(this);
                 RewardActionListener.inspectConnectedNow();
                 refresh();
             } else {
