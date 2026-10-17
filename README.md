@@ -1,4 +1,4 @@
-# Validate Steps (v0.7) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.8) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -144,3 +144,14 @@ Nouvelle fonction **expérimentale et désactivée par défaut**. Sans contacter
 2. Ouvrir Validate Steps puis « Diagnostiquer les actions maintenant (sans envoyer) ».
 3. Lire les résultats de chaque fournisseur sans déclencher de validation.
 4. Pour l'essai automatique, activer séparément les actions directes et la tâche 22 h.
+
+
+## v0.8 — Récupération du service de notifications + relances sûres
+
+- Si le système Android déconnecte le `NotificationListenerService`, l'application tente une **reconnexion avec `requestRebind()`**, uniquement quand l'utilisateur a autorisé l'accès système et activé le module de validation directe.
+- Reconnexion également demandée au redémarrage du téléphone, au déclenchement de 22 h et lors des contrôles de secours. Le service inspecte ensuite les notifications présentes, sans lancer une interface.
+- **Confidentialité** : quand les actions directes sont désactivées, aucune inspection automatique des notifications n'est effectuée. Le diagnostic explicitement demandé reste autorisé.
+- **Envois limités** : si Android renvoie `PendingIntent.CanceledException`, l'action n'a pas été expédiée et peut être retentée, au maximum **trois essais par fournisseur et par jour**. Un envoi réussi, un envoi en cours ou une erreur ambiguë ne sont jamais retentés.
+- Tests unitaires de la politique de relance ; signature `PendingIntent` strictement limitée aux services et diffusions côté politique et appelant.
+
+**Limite** : la reconnexion dépend des restrictions du système. Les notifications des applications tierces peuvent ne comporter aucun bouton direct de conversion de pas. Un statut « action envoyée » ne signifie pas « récompense créditée ». Ni le code Android ni Santé Connect ne peuvent attester d'un solde tiers sans preuve du fournisseur.
