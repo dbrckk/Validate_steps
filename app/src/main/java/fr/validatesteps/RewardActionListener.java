@@ -63,11 +63,15 @@ public final class RewardActionListener extends NotificationListenerService {
     }
 
     @Override public void onNotificationPosted(StatusBarNotification notification) {
+        if (!new ActionBridgeState(this).enabled()) return;
         inspect(notification, true);
     }
 
     private void inspectActiveNotifications(boolean allowDispatch) {
         ActionBridgeState store = new ActionBridgeState(this);
+        // No automatic reading of notifications unless explicitly enabled.
+        // A manual diagnostic scan is the only exception.
+        if (allowDispatch && !store.enabled()) return;
         try {
             StatusBarNotification[] notifications = getActiveNotifications();
             if (notifications != null) {
