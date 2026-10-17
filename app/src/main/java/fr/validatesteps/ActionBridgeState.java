@@ -42,8 +42,13 @@ public final class ActionBridgeState {
     /** Diagnostic metadata only; never persist text from a third-party notification. */
     public void noteSeen(String packageName, String category) {
         if (!ClaimActionPolicy.isProvider(packageName)) return;
-        prefs.edit().putString("seen_" + packageName, LocalDate.now().toString())
-            .putString("category_" + packageName, category)
+        String day = LocalDate.now().toString();
+        String previousDate = prefs.getString("seen_" + packageName, "");
+        String previous = day.equals(previousDate)
+            ? prefs.getString("category_" + packageName, "") : "";
+        String strongest = ObservationRank.strongest(previous, category);
+        prefs.edit().putString("seen_" + packageName, day)
+            .putString("category_" + packageName, strongest)
             .putLong("seen_at_" + packageName, System.currentTimeMillis()).apply();
     }
 
