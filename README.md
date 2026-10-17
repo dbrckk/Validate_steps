@@ -1,4 +1,4 @@
-# Validate Steps (v0.6) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.7) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -124,3 +124,23 @@ Nouvelle fonction **expérimentale et désactivée par défaut**. Sans contacter
 - Android PendingIntent : https://developer.android.com/reference/android/app/PendingIntent
 - WeWard validation manuelle : https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses
 - WeWard rappels : https://faq.weward.fr/hc/fr/articles/28123570360338-Activer-le-rappel-de-validation-des-pas
+
+
+## v0.7 — Diagnostics sûrs des validations par notification
+
+**Sans contacter d'éditeur, sans API privée et sans ouvrir leurs interfaces.**
+
+- **Diagnostic en lecture seule** via « Diagnostiquer les actions maintenant (sans envoyer) ». Il n'envoie aucun `PendingIntent` et fonctionne même avant d'activer les actions.
+- Affiche si WeWard, Macadam et Winwalk sont **installés** (vérification ciblée via `<queries>` Android 11+), si le service de notifications est **connecté**, la date de la dernière inspection et la **catégorie** d'action disponible pour chaque service.
+- Catégories : `notification non observée`, `notification_sans_bouton`, `action_ouvrant_interface`, `action_avec_saisie`, `libelle_action_non_reconnu`, `action_directe_compatible`. Une ancienne notification est identifiée séparément.
+- **Confidentialité :** aucune copie du contenu des notifications, aucun texte de bouton ni identifiant utilisateur enregistré. Les réglages système donnent toutefois au listener un accès sensible : l'utilisateur doit l'autoriser explicitement.
+- Le bouton d'activation refuse de démarrer les actions sans autorisation Android préalable. Désactiver la planification à 22 h désactive aussi les tentatives directes.
+- Seules les actions directes `PendingIntent` de type service/diffusion déjà fournies par un éditeur et explicitement associées à des pas peuvent être envoyées, à 22 h–23 h 40 et après consentement. Rien n'est lancé en lisant le diagnostic.
+
+**État de preuve :** les tests CI et les diagnostics ne démontrent pas que WeWard, Macadam ou Winwalk publient un bouton direct compatible ni qu'une action envoyée crédite réellement des récompenses. Il faut observer la catégorie `action_directe_compatible` et vérifier le solde chez l'éditeur avant de conclure à une validation réussie.
+
+### Vérification sans effet de bord
+1. Installer le nouvel APK et accorder une fois **Accès aux notifications** dans Android.
+2. Ouvrir Validate Steps puis « Diagnostiquer les actions maintenant (sans envoyer) ».
+3. Lire les résultats de chaque fournisseur sans déclencher de validation.
+4. Pour l'essai automatique, activer séparément les actions directes et la tâche 22 h.
