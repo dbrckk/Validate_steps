@@ -126,6 +126,14 @@ public final class RewardActionListener extends NotificationListenerService {
         for (Notification.Action action : notification.actions) {
             if (action == null || action.actionIntent == null) continue;
             PendingIntent pending = action.actionIntent;
+            // Android guarantees these creator fields originate from the system.
+            // Notifications may embed a PendingIntent delegated by another app:
+            // never invoke it unless both package AND UID match the notifier.
+            if (!ActionOriginPolicy.trusted(packageName, sbn.getUid(),
+                    pending.getCreatorPackage(), pending.getCreatorUid())) {
+                observed = "origine_action_non_verifiee";
+                continue;
+            }
             boolean opensActivity = pending.isActivity();
             boolean isBackgroundType = pending.isBroadcast() ||
                 pending.isService() || pending.isForegroundService();
