@@ -12,6 +12,16 @@ public final class ObservationRankTest {
             ObservationRank.strongest("action_directe_compatible", "origine_action_non_verifiee"));
     }
 
+    @Test public void ambiguousCoinActionIsReportedButNeverOverridesSpecificSteps() {
+        assertEquals(4, ObservationRank.score("libelle_de_recompense_ambigu"));
+        assertEquals("libelle_de_recompense_ambigu",
+            ObservationRank.strongest("notification_sans_bouton",
+                "libelle_de_recompense_ambigu"));
+        assertEquals("action_directe_compatible",
+            ObservationRank.strongest("action_directe_compatible",
+                "libelle_de_recompense_ambigu"));
+    }
+
     @Test public void noButtonCannotHidePreviouslyEligibleAction() {
         assertEquals("action_directe_compatible",
             ObservationRank.strongest("action_directe_compatible",
