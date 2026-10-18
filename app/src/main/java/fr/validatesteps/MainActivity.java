@@ -58,6 +58,14 @@ public final class MainActivity extends Activity {
                     (steps == null ? status : steps + " pas détectés"))));
         addButton(layout, "Autoriser l'accès aux notifications dans Android", v ->
             startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        // Android 13+ can restrict notification access for side-loaded APKs.
+        // Opening app info lets the user explicitly enable restricted settings;
+        // this is NEVER performed silently or bypassed by the application.
+        addButton(layout, "Ouvrir les paramètres système de Validate Steps", v -> {
+            Intent details = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            details.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(details);
+        });
         addButton(layout, "Diagnostiquer les actions maintenant (sans envoyer)", v -> {
             RewardActionListener.diagnoseConnectedNow(this);
             refresh();
@@ -131,7 +139,7 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.10\n\n" +
+        info.setText("VALIDATE STEPS 0.11\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
             "\nSurveillance de secours : " + (store.enabled() ? "2 contrôles planifiés (22 h 20 / 23 h 15)" : "inactive") +
             "\nSanté Connect arrière-plan pris en charge : " +
@@ -139,7 +147,8 @@ public final class MainActivity extends Activity {
             "\nAlarme exacte : " + (DailyScheduler.exactAllowed(this) ? "autorisée" : "non autorisée") +
             "\nSanté Connect (arrière-plan) : " + (health ? "autorisée" : "non autorisée") +
             "\nAccès notifications Android : " +
-                (RewardActionListener.hasPermission(this) ? "autorisé" : "non autorisé") +
+                (RewardActionListener.hasPermission(this) ? "autorisé" :
+                    "non autorisé (APK externe : voir paramètres restreints)") +
             "\n" + ProviderPackages.diagnostic(this) +
             "\n\n" + store.describe() +
             "\n\n" + new ActionBridgeState(this).summary() +

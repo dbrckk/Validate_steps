@@ -1,5 +1,14 @@
 plugins { id 'com.android.application' }
 
+// Never commit signing keys. CI injects the private keystore from encrypted
+// GitHub Actions secrets only when all four values are present.
+def signingFile = System.getenv('VS_SIGNING_STORE_FILE')
+def signingPassword = System.getenv('VS_SIGNING_STORE_PASSWORD')
+def signingAlias = System.getenv('VS_SIGNING_KEY_ALIAS')
+def signingKeyPassword = System.getenv('VS_SIGNING_KEY_PASSWORD')
+def hasStableSigning = [signingFile, signingPassword, signingAlias, signingKeyPassword]
+    .every { it != null && !it.isEmpty() }
+
 android {
     namespace 'fr.validatesteps'
     compileSdk 35
@@ -7,8 +16,23 @@ android {
         applicationId 'fr.validatesteps'
         minSdk 34
         targetSdk 35
-        versionCode 10
-        versionName '0.10.0'
+        versionCode 11
+        versionName '0.11.0'
+    }
+    signingConfigs {
+        if (hasStableSigning) {
+            stableRelease {
+                storeFile file(signingFile)
+                storePassword signingPassword
+                keyAlias signingAlias
+                keyPassword signingKeyPassword
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (hasStableSigning) signingConfig signingConfigs.stableRelease
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
