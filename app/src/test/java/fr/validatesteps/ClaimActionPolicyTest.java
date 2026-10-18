@@ -15,7 +15,18 @@ public final class ClaimActionPolicyTest {
         assertTrue(ClaimActionPolicy.eligible(
             "com.weward", "Valider mes pas", false, true, false, at(22, 0)));
         assertTrue(ClaimActionPolicy.eligible(
-            "com.macadamapp", "Récupérer mes pièces", false, true, false, at(23, 10)));
+            "com.macadamapp", "Récupérer mes pas", false, true, false, at(23, 10)));
+    }
+
+    @Test public void genericPointsOrCoinsAreNeverClaimedBlindly() {
+        for (String action : new String[] {
+                "Récupérer mes pièces", "Récupérer mes points",
+                "Collecter mes pièces", "Collect coins",
+                "Get points", "Collect rewards"}) {
+            assertFalse(action,
+                ClaimActionPolicy.eligible("com.weward", action,
+                    false, true, false, at(22, 10)));
+        }
     }
 
     @Test public void actionMustNotLaunchAnActivity() {
@@ -49,7 +60,7 @@ public final class ClaimActionPolicyTest {
 
     @Test public void normalizedAccentAndWhitespace() {
         assertTrue(ClaimActionPolicy.eligible(
-            "com.macadamapp", "  RÉCUPÉRER    MES PIÈCES ", false, true, false, at(22, 5)));
+            "com.macadamapp", "  RÉCUPÉRER    MES PAS ", false, true, false, at(22, 5)));
     }
 
     @Test public void unknownPendingIntentTypeMustNeverDispatch() {
