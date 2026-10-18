@@ -131,7 +131,8 @@ public final class RewardActionListener extends NotificationListenerService {
             // never invoke it unless both package AND UID match the notifier.
             if (!ActionOriginPolicy.trusted(packageName, sbn.getUid(),
                     pending.getCreatorPackage(), pending.getCreatorUid())) {
-                observed = "origine_action_non_verifiee";
+                observed = ObservationRank.strongest(observed,
+                    "origine_action_non_verifiee");
                 continue;
             }
             boolean opensActivity = pending.isActivity();
@@ -142,7 +143,7 @@ public final class RewardActionListener extends NotificationListenerService {
             String label = action.title == null ? "" : action.title.toString();
             String diagnostic = ClaimActionPolicy.classify(packageName,
                 label, opensActivity, isBackgroundType, requiresInput);
-            observed = diagnostic;
+            observed = ObservationRank.strongest(observed, diagnostic);
 
             if (!"action_directe_compatible".equals(diagnostic)) continue;
             store.noteSeen(packageName, diagnostic);

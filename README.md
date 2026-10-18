@@ -1,4 +1,4 @@
-# Validate Steps (v0.11) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.12) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -223,3 +223,16 @@ Sans les quatre secrets, la CI continue de réussir et ne publie que le debug, s
 Sources :
 - https://developer.android.com/studio/publish/app-signing
 - https://developer.android.com/build/building-cmdline
+
+
+## v0.12 — Ne jamais confondre des points quelconques avec des récompenses de pas
+
+Le pont de notifications demeure **expérimental** et facultatif. Une action telle que « récupérer mes pièces », « récupérer mes points », « collect coins » ou « collect rewards » **n'établit pas** qu'il s'agit de pas. La v0.12 refuse désormais ces libellés génériques, même s'ils proviennent d'une notification authentique et même si le système autorise leur exécution sans écran.
+
+- Seules des formules qui mentionnent explicitement les **pas** (`pas`, `steps`, `step coins`) et qui figurent dans la liste blanche locale sont admissibles.
+- Diagnostic `libelle_de_recompense_ambigu` pour un bouton générique, sans enregistrer son texte ou aucune donnée personnelle.
+- Quand une notification contient plusieurs boutons, la classification la plus informative est conservée (plutôt que simplement celle du dernier bouton).
+- Tests unitaires supplémentaires : refus d'actions génériques, normalisation des accents, classification et conservation du diagnostic.
+- Ni simulation de pas, ni accès à des API privées, ni contournement de validation publicitaire ou de l'interface du fournisseur.
+
+**État du but initial :** une commande envoyée en arrière-plan ne permet toujours pas de confirmer le crédit WeWard/Macadam/Winwalk. Aucun bouton officiellement documenté par les fournisseurs n'a été démontré compatible sur le téléphone. Les libellés génériques sont sciemment rejetés plutôt que de risquer des actions qui ne concernent pas les pas.

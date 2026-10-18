@@ -12,12 +12,17 @@ import java.util.Set;
 public final class ClaimActionPolicy {
     private static final Set<String> PACKAGES = Set.of(
         "com.weward", "com.macadamapp", "com.winwalk.android");
+    // Exact, step-specific labels only. Generic "collect coins" / "get points"
+    // actions are too ambiguous: they may trigger unrelated redemptions.
     private static final Set<String> ACTIONS = Set.of(
         "valider mes pas", "valider les pas", "convertir mes pas",
-        "recuperer mes pieces", "recuperer mes points",
-        "reclamer mes pas", "collecter mes pieces",
+        "reclamer mes pas", "recuperer mes pas", "collecter mes pas",
         "claim steps", "validate steps", "convert steps",
         "collect step coins", "collect coins from steps");
+    private static final Set<String> AMBIGUOUS_ACTIONS = Set.of(
+        "recuperer mes pieces", "recuperer mes points",
+        "collecter mes pieces", "collecter mes points",
+        "collect coins", "claim coins", "get points", "collect rewards");
 
     private ClaimActionPolicy() {}
 
@@ -39,8 +44,11 @@ public final class ClaimActionPolicy {
         if (needsInput) return "action_avec_saisie";
         if (isActivity) return "action_ouvrant_interface";
         if (!isBackgroundType) return "type_action_non_pris_en_charge";
-        return ACTIONS.contains(normalize(button))
-            ? "action_directe_compatible" : "libelle_action_non_reconnu";
+        String normalized = normalize(button);
+        if (ACTIONS.contains(normalized)) return "action_directe_compatible";
+        if (AMBIGUOUS_ACTIONS.contains(normalized))
+            return "libelle_de_recompense_ambigu";
+        return "libelle_action_non_reconnu";
     }
 
     public static boolean eligible(String packageName, String button,
