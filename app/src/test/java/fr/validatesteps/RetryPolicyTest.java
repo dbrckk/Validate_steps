@@ -25,8 +25,16 @@ public final class RetryPolicyTest {
         assertNull(RetryPolicy.retry(at(23, 40)));
         assertNull(RetryPolicy.recovery(at(23, 40)));
     }
-    @Test public void beforeDeadlineRetryStaysOnSameDay() {
-        assertEquals(at(23, 51), RetryPolicy.retry(at(23, 39)));
+    @Test public void beforeDeadlineRetryNeverRunsAfterRecoveryWindow() {
+        assertEquals(at(23, 39), RetryPolicy.retry(at(23, 27)));
+        assertNull(RetryPolicy.retry(at(23, 28)));
+        assertNull(RetryPolicy.retry(at(23, 39)));
+    }
+
+    @Test public void rebootRecoveryNeverRunsAtOrAfterCutoff() {
+        assertEquals(at(23, 39), RetryPolicy.recovery(at(23, 37)));
+        assertNull(RetryPolicy.recovery(at(23, 38)));
+        assertNull(RetryPolicy.recovery(at(23, 39)));
     }
     @Test public void daylightSavingDayIsValid() {
         ZonedDateTime now = ZonedDateTime.of(2026, 10, 25, 22, 4, 0, 0, paris);
