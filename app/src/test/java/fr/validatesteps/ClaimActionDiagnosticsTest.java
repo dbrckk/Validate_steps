@@ -34,6 +34,15 @@ public final class ClaimActionDiagnosticsTest {
                 false, true, false));
     }
 
+    @Test public void genericCoinLabelIsExplicitlyFlaggedAsAmbiguous() {
+        assertEquals("libelle_de_recompense_ambigu",
+            ClaimActionPolicy.classify("com.macadamapp", "RÉCUPÉRER MES PIÈCES",
+                false, true, false));
+        assertEquals("action_directe_compatible",
+            ClaimActionPolicy.classify("com.winwalk.android", "Collect step coins",
+                false, true, false));
+    }
+
     @Test public void unknownPackageIsNotInspected() {
         assertEquals("service_non_pris_en_charge",
             ClaimActionPolicy.classify("com.example.finance", "Valider mes pas",
