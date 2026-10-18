@@ -1,4 +1,4 @@
-# Validate Steps (v0.10) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.11) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -177,3 +177,49 @@ Nouvelle fonction **expérimentale et désactivée par défaut**. Sans contacter
 - Tout est local. Aucune autorisation réseau supplémentaire. Android peut retarder ou bloquer une exécution ; un événement qui n'a jamais été reçu ne peut pas être journalisé, et l'historique n'est pas une preuve de crédit chez les partenaires.
 
 Utilisation : après une nuit de test sur le Redmi, ouvrir Validate Steps puis lire **HISTORIQUE D'EXÉCUTION**. Copier le journal technique pour analyser les heures si nécessaire.
+
+
+## v0.11 — relances strictement bornées et signature de mise à jour stable
+
+### Respect de l'échéance nocturne
+La récupération des pas et les éventuelles actions de notification sont limitées à **22:00–23:40 (fin exclusive)**. Le planificateur n'inscrit plus d'alarme prévue hors de cette plage (par exemple 23:51 après un échec à 23:39). Les tests couvrent les dernières minutes avant la clôture. Cela évite un réveil inutile et supprime une incohérence entre programmation des relances et politique de validation.
+
+### Accès aux notifications sur Redmi / Android 13+
+Après installation manuelle d'un APK depuis GitHub, Android peut bloquer la permission d'accès aux notifications avec le message **« Paramètre restreint »**. Cela peut empêcher totalement notre service de recevoir les notifications des applications tierces.
+
+1. Essayer d'accorder l'accès dans **Validate Steps → Autoriser l'accès aux notifications dans Android**.
+2. Si Android refuse avec « Paramètre restreint », utiliser le nouveau bouton **Ouvrir les paramètres système de Validate Steps** ; dans la fiche de l'application, menu **⋮ → Autoriser les paramètres restreints** si Android le propose.
+3. Retourner aux réglages d'accès aux notifications et accorder explicitement l'autorisation à Validate Steps, puis activer les actions directes dans l'application.
+
+Cette permission est sensible : elle donne au service un accès large aux notifications du téléphone. L'application filtre les seuls fournisseurs autorisés sans conserver leur contenu, mais l'activation doit rester un **choix explicite** de l'utilisateur. Aucun contournement automatique de la protection d'Android.
+
+Source : https://support.google.com/android/answer/12623953?hl=fr
+
+### Mises à jour APK et certificat de signature : correction structurelle
+
+Le `app-debug.apk` GitHub Actions est signé par une **clé de débogage créée par le runner**, qui peut changer d'une compilation à l'autre. Android **refuse d'installer une mise à jour si les certificats diffèrent**. Les APK debug restent disponibles pour les tests mais **ne constituent pas un canal de mises à jour fiables**.
+
+La CI prend maintenant en charge **en option** un `validate-steps-release-signed` avec un certificat privé stable. La clé et les mots de passe sont conservés dans **GitHub Actions Secrets**, jamais dans Git, ni dans un artefact téléchargeable.
+
+Configuration unique par le propriétaire du dépôt :
+
+1. Générer et **sauvegarder hors du dépôt** une clé de signature Android avec Android Studio ou `keytool` (JDK 17) :
+   ```bash
+   keytool -genkeypair -v -keystore validate-steps-release.jks -alias validate-steps \
+     -keyalg RSA -keysize 3072 -validity 10000
+   ```
+2. Dans GitHub → dépôt **Settings → Secrets and variables → Actions → New repository secret**, enregistrer :
+   - `VS_KEYSTORE_B64` : contenu base64 du fichier .jks (Linux : `base64 -w0 validate-steps-release.jks`).
+   - `VS_KEYSTORE_PASSWORD` : mot de passe du keystore.
+   - `VS_KEY_ALIAS` : `validate-steps`.
+   - `VS_KEY_PASSWORD` : mot de passe de la clé.
+3. Après cette configuration, chaque `push` sur `main` produit, en plus du debug, **`validate-steps-release-signed`** sous GitHub Actions. La CI vérifie la signature avec `apksigner verify --print-certs`.
+4. Installer **toujours cette variante stable** pour les prochaines mises à jour. Garder la clé originale dans un lieu sûr ; la perte de cette clé empêchera de mettre à jour l'installation avec la même identité.
+
+**Migration depuis debug :** si le certificat de l'application actuellement installée diffère de celui de la version release, Android refusera le remplacement. Une **désinstallation puis réinstallation** peut être nécessaire **une fois**, ce qui efface les données locales et oblige à redonner les autorisations ; ne pas désinstaller avant d'avoir consulté ou copié le journal. Une fois la release stable installée, les futures mises à jour signées avec la même clé conservent les données.
+
+Sans les quatre secrets, la CI continue de réussir et ne publie que le debug, sans prétendre garantir les mises à jour.
+
+Sources :
+- https://developer.android.com/studio/publish/app-signing
+- https://developer.android.com/build/building-cmdline
