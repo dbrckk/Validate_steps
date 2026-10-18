@@ -9,6 +9,7 @@ public final class ObservationRank {
         if ("origine_action_non_verifiee".equals(category)) return 5;
         if ("action_ouvrant_interface".equals(category)) return 5;
         if ("action_avec_saisie".equals(category)) return 4;
+        if ("libelle_de_recompense_ambigu".equals(category)) return 4;
         if ("libelle_action_non_reconnu".equals(category)) return 3;
         if ("type_action_non_pris_en_charge".equals(category)) return 3;
         if ("notification_sans_bouton".equals(category)) return 2;
