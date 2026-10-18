@@ -1,4 +1,4 @@
-# Validate Steps (v0.9) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.10) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -166,3 +166,14 @@ Nouvelle fonction **expérimentale et désactivée par défaut**. Sans contacter
 - **Limite majeure :** cette sécurisation ne démontre pas l'existence de boutons de validation directs dans les applications tierces et **ne prouve aucun crédit**. Le module expérimental reste désactivé tant que l'utilisateur ne l'a pas autorisé dans Android et dans Validate Steps.
 
 [Documentation Android sur l'identité d'un `PendingIntent`](https://developer.android.com/reference/android/app/PendingIntent#getCreatorPackage()) : le package et l'UID sont vérifiés par le système et identifient **l'émetteur du PendingIntent**, pas nécessairement l'application qui l'a relayé.
+
+
+## v0.10 — Journal de preuve locale des déclenchements (Redmi / HyperOS)
+- Journal borné à **80 événements** d'exécution, horodatés en heure locale avec décalage UTC. Pas de texte de notifications, pas de compte tiers, pas de secret, pas de localisation ni de nombre de pas enregistré dans ce journal.
+- L'interface défilante affiche les **18 événements récents**, avec possibilité explicite de copier ce diagnostic dans le presse-papiers ou de le supprimer. Le presse-papiers Android n'est utilisé que sur action du propriétaire.
+- Événements : alarmes principales et de reprise, watchdog en cours/ignoré/ayant mis une lecture en file, réarmements système, lectures démarrées/réussies/bloquées/à relancer et commandes de notification effectivement *envoyées*. **Une commande envoyée n'est pas une récompense créditée.**
+- Grâce aux heures effectivement observées, il devient possible de diagnostiquer pourquoi une alarme n'a pas eu lieu à 22 h, si WorkManager a été retardé ou si Santé Connect a refusé la lecture.
+- Tests unitaires purs : capacité maximale, historique récent, absence de données et refus des événements multi-lignes.
+- Tout est local. Aucune autorisation réseau supplémentaire. Android peut retarder ou bloquer une exécution ; un événement qui n'a jamais été reçu ne peut pas être journalisé, et l'historique n'est pas une preuve de crédit chez les partenaires.
+
+Utilisation : après une nuit de test sur le Redmi, ouvrir Validate Steps puis lire **HISTORIQUE D'EXÉCUTION**. Copier le journal technique pour analyser les heures si nécessaire.

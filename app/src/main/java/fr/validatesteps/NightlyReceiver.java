@@ -9,12 +9,19 @@ import java.time.LocalDate;
 public final class NightlyReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
         RunStore store = new RunStore(context);
+        NightTimeline timeline = new NightTimeline(context);
         if (!store.enabled() || intent == null) return;
 
         LocalDate today = LocalDate.now();
         LocalDate auditedDay = AuditDay.resolve(
             intent.getStringExtra(DailyScheduler.EXTRA_AUDIT_DATE), today);
-        if (auditedDay == null) return; // Never attribute a stale alarm to today.
+        if (auditedDay == null) {
+            timeline.add(NightTimeline.Event.ALARM_REJECTED, null);
+            return; // Never attribute a stale alarm to today.
+        }
+        timeline.add("fr.validatesteps.RECOVERY".equals(intent.getAction())
+            ? NightTimeline.Event.RECOVERY_RECEIVED
+            : NightTimeline.Event.ALARM_RECEIVED, auditedDay);
 
         DailyScheduler.schedule(context);
         RewardActionListener.ensureConnected(context);
@@ -24,5 +31,6 @@ public final class NightlyReceiver extends BroadcastReceiver {
             DailyScheduler.scheduleRecovery(context, false);
         }
         AuditWorker.enqueue(context.getApplicationContext(), auditedDay);
+        timeline.add(NightTimeline.Event.AUDIT_ENQUEUED, auditedDay);
     }
 }

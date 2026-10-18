@@ -2,6 +2,8 @@ package fr.validatesteps;
 
 import android.Manifest;
 import android.app.Activity;
+import android.content.ClipData;
+import android.content.ClipboardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -17,6 +19,7 @@ import java.time.LocalDate;
 /** Optional one-time setup and diagnostics; never launched by the nightly worker. */
 public final class MainActivity extends Activity {
     private TextView info;
+    private TextView history;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -80,6 +83,23 @@ public final class MainActivity extends Activity {
             DailyScheduler.schedule(this);
             refresh();
         });
+        addButton(layout, "Copier le journal technique (sans données de compte)", v -> {
+            String diagnostics = new NightTimeline(this).recent();
+            ClipboardManager clipboard = getSystemService(ClipboardManager.class);
+            if (clipboard != null) {
+                clipboard.setPrimaryClip(ClipData.newPlainText(
+                    "Validate Steps : exécutions locales", diagnostics));
+                info.append("\nJournal copié.");
+            }
+        });
+        addButton(layout, "Effacer le journal local", v -> {
+            new NightTimeline(this).clear();
+            refresh();
+        });
+        history = new TextView(this);
+        history.setTextSize(12);
+        history.setTextIsSelectable(true);
+        layout.addView(history);
         ScrollView scroller = new ScrollView(this);
         scroller.setFillViewport(true);
         scroller.addView(layout);
@@ -111,7 +131,7 @@ public final class MainActivity extends Activity {
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
-        info.setText("VALIDATE STEPS 0.9\n\n" +
+        info.setText("VALIDATE STEPS 0.10\n\n" +
             "Lecture à 22 h : " + (store.enabled() ? "ACTIVE" : "INACTIVE") +
             "\nSurveillance de secours : " + (store.enabled() ? "2 contrôles planifiés (22 h 20 / 23 h 15)" : "inactive") +
             "\nSanté Connect arrière-plan pris en charge : " +
@@ -126,5 +146,12 @@ public final class MainActivity extends Activity {
             "\n\nLa lecture s'effectue sans ouvrir d'application. Ce relevé ne valide " +
             "PAS les pièces WeWard, Macadam ou Winwalk. Sweatcoin est géré " +
             "indépendamment par sa propre application.");
+        if (history != null) {
+            history.setText("\nHISTORIQUE D'EXÉCUTION (18 événements récents)\n"
+                + new NightTimeline(this).recent()
+                + "\n\nALARM = alarme Android, WATCHDOG = secours, "
+                + "AUDIT = lecture réelle des pas, CLAIM_ACTION = action de "
+                + "notification envoyée (crédit NON confirmé).");
+        }
     }
 }

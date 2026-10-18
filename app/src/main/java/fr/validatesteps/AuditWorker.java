@@ -43,6 +43,8 @@ public final class AuditWorker extends Worker {
         LocalDate now = LocalDate.now();
         LocalDate day = AuditDay.resolve(getInputData().getString(INPUT_DAY), now);
         if (day == null || !store.begin(day)) return Result.success();
+        NightTimeline timeline = new NightTimeline(context);
+        timeline.add(NightTimeline.Event.AUDIT_STARTED, day);
 
         final CountDownLatch completed = new CountDownLatch(1);
         final AtomicReference<Long> steps = new AtomicReference<>();
@@ -71,13 +73,17 @@ public final class AuditWorker extends Worker {
             "health_connect_unavailable".equals(status) ||
             "background_health_unsupported".equals(status);
         if ("steps_read".equals(status) || missingPermission) {
+            timeline.add("steps_read".equals(status)
+                ? NightTimeline.Event.AUDIT_OK : NightTimeline.Event.AUDIT_BLOCKED, day);
             if (isCurrentDay) DailyScheduler.cancelRecovery(context);
             Notifier.show(context, day, count, status);
         } else if (isCurrentDay) {
+            timeline.add(NightTimeline.Event.AUDIT_RETRY_NEEDED, day);
             DailyScheduler.scheduleRecovery(context, false);
             if (!RetryPolicy.canRecover(ZonedDateTime.now()))
                 Notifier.show(context, day, null, status);
         } else {
+            timeline.add(NightTimeline.Event.AUDIT_OLD_DAY, day);
             // A late read is still attributed correctly, but no expired
             // third-party reward can be claimed on the next day.
             Notifier.show(context, day, null, status);
