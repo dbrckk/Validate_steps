@@ -85,6 +85,8 @@ public final class GuidedClaimService extends AccessibilityService {
             String pkg, int depth) {
         if (node == null || depth > 24) return null;
         if (!node.isVisibleToUser() || !node.isEnabled()) return null;
+        CharSequence sourcePackage = node.getPackageName();
+        if (sourcePackage != null && !pkg.contentEquals(sourcePackage)) return null;
         CharSequence txt = node.getText();
         CharSequence desc = node.getContentDescription();
         if ((txt != null && GuidedClaimPolicy.canClick(pkg, txt.toString())) ||
