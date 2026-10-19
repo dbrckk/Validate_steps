@@ -31,6 +31,7 @@ public final class MainActivity extends Activity {
     private LinearLayout content;
     private LinearLayout settingsContent;
     private LinearLayout providersSection;
+    private LinearLayout readinessSection;
     private StepRingView progress;
     private TextView scheduleStatus;
     private TextView stepSource;
@@ -87,6 +88,10 @@ public final class MainActivity extends Activity {
         hero();
         space(content, 18);
         actions();
+        space(content, 26);
+        title(content, "PRÊT À VALIDER ?", "Touchez un indicateur pour configurer Android");
+        readinessSection = column();
+        content.addView(readinessSection);
         space(content, 28);
         title(content, "VOS APPLICATIONS", "4 services · états distincts");
         providersSection = column();
@@ -235,6 +240,104 @@ public final class MainActivity extends Activity {
         b.setClickable(true);
         b.setFocusable(true);
         return b;
+    }
+
+    /** Compact and actionable permission/availability dashboard. */
+    private void rebuildReadiness() {
+        if (readinessSection == null) return;
+        readinessSection.removeAllViews();
+        RunStore run = new RunStore(this);
+        boolean health = HealthReader.backgroundSupported() &&
+            checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
+        boolean exact = DailyScheduler.exactAllowed(this);
+        boolean scheduled = run.enabled();
+        boolean access = RewardActionListener.hasPermission(this);
+        boolean listening = new ActionBridgeState(this).enabled();
+
+        LinearLayout first = row();
+        readinessTile(first, "SANTÉ CONNECT", health,
+            health ? "Pas accessibles" : "Autorisation requise", () -> {
+                if (!HealthReader.backgroundSupported()) {
+                    toast("Lecture en arrière-plan non disponible sur cette version Android");
+                } else {
+                    requestPermissions(new String[]{
+                        HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND}, 10);
+                }
+            }, true);
+        readinessTile(first, "ALARME · 22 H", scheduled && exact,
+            !scheduled ? "À activer" : exact ? "Programmée" : "Horaire approximatif",
+            () -> {
+                if (!scheduled) {
+                    new RunStore(this).enable(true);
+                    DailyScheduler.schedule(this);
+                    DailyScheduler.scheduleRecovery(this, true);
+                    refresh();
+                    toast("Relevé quotidien à 22 h activé");
+                } else if (!exact) {
+                    Intent exactIntent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                    exactIntent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(exactIntent);
+                } else {
+                    toast("Relevé à 22 h activé");
+                }
+            }, false);
+        readinessSection.addView(first);
+
+        LinearLayout second = row();
+        readinessTile(second, "NOTIFICATIONS", access && listening,
+            !access ? "Accès Android requis" : listening ? "Actions actives" : "À activer",
+            () -> {
+                if (!access) {
+                    startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+                } else if (!listening) {
+                    notificationSwitch.setChecked(true);
+                } else {
+                    RewardActionListener.diagnoseConnectedNow(this);
+                    refresh();
+                    toast("Diagnostic des notifications actualisé");
+                }
+            }, true);
+        readinessTile(second, "UN APPUI", GuidedClaimService.connected(),
+            GuidedClaimService.connected() ? "Assistance prête" : "Configuration requise",
+            () -> {
+                if (!getPreferences(MODE_PRIVATE)
+                        .getBoolean("assistance_disclosed", false)) {
+                    discloseAccessibility();
+                } else {
+                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                }
+            }, false);
+        LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        secondLp.topMargin = dp(10);
+        readinessSection.addView(second, secondLp);
+    }
+
+    private void readinessTile(LinearLayout parent, String name, boolean ready,
+            String detail, Runnable press, boolean left) {
+        LinearLayout tile = column();
+        tile.setPadding(dp(14), dp(14), dp(10), dp(15));
+        tile.setBackground(DashboardStyles.stroke(this,
+            DashboardStyles.SURFACE, ready ? 0xff265447 : 0xff3b415a, 16, 1));
+        TextView header = label((ready ? "●  " : "○  ") + name,
+            12, ready ? DashboardStyles.ACCENT : DashboardStyles.WARNING, true);
+        header.setSingleLine(true);
+        header.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tile.addView(header);
+        TextView description = label(detail, 12, DashboardStyles.MUTED, false);
+        description.setPadding(0, dp(9), 0, 0);
+        description.setMaxLines(2);
+        tile.addView(description);
+        tile.setClickable(true);
+        tile.setFocusable(true);
+        tile.setContentDescription(name + " : " + detail + ". Toucher pour configurer.");
+        tile.setOnClickListener(v -> press.run());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            0, dp(91), 1f);
+        if (left) params.rightMargin = dp(5);
+        else params.leftMargin = dp(5);
+        parent.addView(tile, params);
     }
 
     private void rebuildProviders() {
@@ -651,6 +754,7 @@ public final class MainActivity extends Activity {
                 ? "●  AUTOMATIQUE À 22:00 · ACTIVE"
                 : "◌  ACTIVE · ALARME APPROXIMATIVE")
             : "○  AUTOMATISATION À 22 H DÉSACTIVÉE");
+        rebuildReadiness();
         rebuildProviders();
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
