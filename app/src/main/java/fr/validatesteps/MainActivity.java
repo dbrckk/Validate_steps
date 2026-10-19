@@ -311,9 +311,11 @@ public final class MainActivity extends Activity {
         scheduleSwitch = new Switch(this);
         scheduleSwitch.setThumbTintList(android.content.res.ColorStateList.valueOf(
             DashboardStyles.ACCENT));
+        scheduleSwitch.setContentDescription("Activer le relevé automatique chaque jour à 22 heures");
         scheduleSwitch.setOnCheckedChangeListener((button, checked) -> {
             if (updating) return;
             new RunStore(this).enable(checked);
+            if (!checked) new ActionBridgeState(this).enable(false);
             DailyScheduler.schedule(this);
             if (checked) DailyScheduler.scheduleRecovery(this, true);
             refresh();
@@ -338,6 +340,7 @@ public final class MainActivity extends Activity {
         notificationSwitch = new Switch(this);
         notificationSwitch.setThumbTintList(android.content.res.ColorStateList.valueOf(
             DashboardStyles.ACCENT));
+        notificationSwitch.setContentDescription("Activer les actions directes de notifications en arrière-plan");
         notificationSwitch.setOnCheckedChangeListener((button, checked) -> {
             if (updating) return;
             if (checked && !RewardActionListener.hasPermission(this)) {
@@ -350,6 +353,12 @@ public final class MainActivity extends Activity {
                         startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
                     .setNegativeButton("Plus tard", null).show();
                 return;
+            }
+            if (checked && !new RunStore(this).enabled()) {
+                new RunStore(this).enable(true);
+                DailyScheduler.schedule(this);
+                DailyScheduler.scheduleRecovery(this, true);
+                toast("Programmation quotidienne activée avec les actions directes");
             }
             new ActionBridgeState(this).enable(checked);
             if (checked) {
@@ -494,7 +503,9 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!GuidedClaimService.begin(this)) {
-            toast("Impossible de démarrer : vérifie l'autorisation Accessibilité");
+            toast(new ClaimFlowState(this).active()
+                ? "Un parcours assisté est déjà en cours"
+                : "Impossible de démarrer : vérifie l'autorisation Accessibilité");
             return;
         }
         toast("Parcours lancé · boutons des pas uniquement");
