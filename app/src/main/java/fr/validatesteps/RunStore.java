@@ -17,6 +17,13 @@ public final class RunStore {
         prefs.edit().putBoolean("enabled", enabled).commit();
     }
 
+    /** Read-only status for exact day; does not expose step counts. */
+    public String statusOn(LocalDate day) {
+        if (day == null || !day.toString().equals(prefs.getString("last_date", "")))
+            return "";
+        return prefs.getString("last_status", "");
+    }
+
     public boolean successfulOn(LocalDate day) {
         return day.toString().equals(prefs.getString("last_date", "")) &&
             "steps_read".equals(prefs.getString("last_status", ""));

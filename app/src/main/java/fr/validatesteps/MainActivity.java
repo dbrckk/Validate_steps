@@ -21,6 +21,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -149,7 +150,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.15", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.16", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -770,6 +771,7 @@ public final class MainActivity extends Activity {
     @Override protected void onResume() {
         super.onResume();
         if (content != null) {
+            maybeRecoverNightlyAfterPermissionGrant();
             refresh();
             fetchSteps(false);
         }
@@ -779,9 +781,35 @@ public final class MainActivity extends Activity {
             int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (content != null) {
+            if (requestCode == 10) maybeRecoverNightlyAfterPermissionGrant();
             refresh();
             fetchSteps(false);
         }
+    }
+
+    /**
+     * An evening Health Connect denial cancels further automatic retries
+     * until permissions change. When the user restores permission, enqueue
+     * ONE auditable same-day retry (no UI automation or provider claims).
+     */
+    private void maybeRecoverNightlyAfterPermissionGrant() {
+        LocalDate today = LocalDate.now();
+        boolean granted = HealthReader.backgroundSupported() &&
+            checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
+        String key = "health_permission_recovery_date";
+        String lastRecovery = getPreferences(MODE_PRIVATE).getString(key, "");
+        boolean eligible = HealthPermissionRecoveryPolicy.shouldRetry(
+            new RunStore(this).enabled(),
+            new RunStore(this).statusOn(today),
+            granted,
+            RetryPolicy.canRecover(ZonedDateTime.now()),
+            today.toString().equals(lastRecovery));
+        if (!eligible) return;
+        if (!getPreferences(MODE_PRIVATE).edit().putString(key, today.toString()).commit())
+            return;
+        new NightTimeline(this).add(NightTimeline.Event.AUDIT_PERMISSION_RECOVERED, today);
+        AuditWorker.enqueue(this, today);
     }
 
     private void refresh() {
