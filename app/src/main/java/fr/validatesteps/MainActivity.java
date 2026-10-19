@@ -47,6 +47,26 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(DashboardStyles.BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
         render();
+        handleNotificationIntent(getIntent());
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleNotificationIntent(intent);
+    }
+
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null || !intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
+        String token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
+        // Remove extras even from this Activity's in-memory Intent to block replay.
+        intent.removeExtra(GuidedNotificationToken.EXTRA);
+        if (!GuidedNotificationToken.consume(this, token)) {
+            toast("Ce bouton a expiré. Lance le parcours depuis le tableau de bord.");
+            return;
+        }
+        // User tapped the notification; consent and system permission are still mandatory.
+        onClaimAll();
     }
 
     private void render() {
