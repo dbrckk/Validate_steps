@@ -51,10 +51,21 @@ public final class ClaimActionPolicy {
         return "libelle_action_non_reconnu";
     }
 
+    /** Automatic dispatch is strictly limited to the nightly local time window. */
     public static boolean eligible(String packageName, String button,
             boolean isActivity, boolean isBackgroundType, boolean needsInput, ZonedDateTime time) {
-        return isProvider(packageName) && inTimeWindow(time) &&
-            !isActivity && isBackgroundType && !needsInput && ACTIONS.contains(normalize(button));
+        return time != null && inTimeWindow(time) &&
+            eligibleOnDemand(packageName, button, isActivity, isBackgroundType, needsInput);
+    }
+
+    /**
+     * Only an explicit foreground user gesture may call this alternative.
+     * It relaxes the CLOCK constraint, not package, content or action security.
+     */
+    public static boolean eligibleOnDemand(String packageName, String button,
+            boolean isActivity, boolean isBackgroundType, boolean needsInput) {
+        return isProvider(packageName) && !isActivity && isBackgroundType &&
+            !needsInput && ACTIONS.contains(normalize(button));
     }
 
     private static String normalize(String value) {

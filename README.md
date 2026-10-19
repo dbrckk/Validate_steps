@@ -1,4 +1,4 @@
-# Validate Steps (v0.13) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.14) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -286,3 +286,30 @@ Si les notifications Android sont autorisées et que la lecture de pas du jour a
 - Une ouverture ou un clic assisté n'est **pas** une preuve de crédit. Les notifications tierces peuvent proposer zéro action directe compatible.
 
 Le moteur assisté refuse un second parcours simultané et limite la fréquence des inspections de l'arbre d'accessibilité pour réduire la charge CPU.
+
+ 
+## v0.14 — Bouton « Tout valider » hybride et tableau de bord d'autorisations
+
+### Un seul appui, deux moyens techniques réellement distincts
+
+1. Depuis l'écran de Validate Steps, appuyer sur **« Tout valider »**. Si l'accès Android aux notifications est accordé et que le listener est connecté, le système recherche et envoie **immédiatement** les actions directes publiées par WeWard/Macadam/Winwalk, **même en dehors de 22 h**. Il n'est pas nécessaire d'activer la surveillance nocturne pour cette tentative ponctuelle.
+2. Les vérifications restent strictes : le fournisseur doit être sur la liste blanche, son UID doit correspondre au propriétaire du `PendingIntent`, le bouton doit mentionner explicitement les **pas**, ne doit pas ouvrir directement une activité, ni demander une saisie ni déclencher une publicité.
+3. Si l'utilisateur a également autorisé l'assistance Accessibilité et en a accepté le fonctionnement, **le même appui** peut démarrer le parcours guidé dans les applications restantes. Une action de notification déjà envoyée aujourd'hui ne déclenche **pas** un second clic assisté.
+4. Si Android ne fournit pas de service ou de bouton compatible, l'écran explique quelle permission manque et permet d'ouvrir ses réglages. La méthode guidée requiert un écran déverrouillé et ouvre les applications ; elle **n'est pas invisible**.
+5. Chaque service expose son propre statut local. **« Action envoyée » signifie seulement que le système Android a accepté la commande, pas que le fournisseur a crédité ses récompenses**. Les services peuvent modifier leurs interfaces ou ne proposer aucune action éligible.
+
+### Exécution automatique à 22 h
+
+La programmation existante reste distincte : lecture Santé Connect par alarme à **22:00**, secours WorkManager à **22:20** et **23:15**, et actions directes de notifications uniquement dans la fenêtre **22:00–23:40** après activation volontaire. Aucun parcours Accessibilité n'est ouvert par une tâche de fond ; Android ne garantit ni écran déverrouillé ni possibilité de lancer les interfaces de services depuis le fond.
+
+### Interface Android
+
+- Nouveau groupe **« Prêt à valider ? »**, quatre tuiles d'état cliquables (Santé Connect, alarme à 22 h, accès aux notifications et assistance à un appui).
+- Mise en route ciblée par permission manquante, sans recherches manuelles dans les paramètres.
+- Retour explicite du nombre de commandes directes envoyées depuis le bouton principal. **Ce nombre ne représente pas des gains.**
+- Toujours : tableau de bord sombre natif, anneau de pas réels, fiches individuelles des quatre services, historique privé et diagnostics.
+- Tests unitaires couvrant les règles du lancement ponctuel, les libellés ambigus et le maintien strict des limites nocturnes.
+
+### Validation encore nécessaire
+
+Les actions réellement exposées sur ton Redmi par chaque application doivent être vérifiées en situation. Sans API officielle de crédit, **il n'existe pas de preuve universelle de validation automatique des récompenses** ; un clic Accessibilité peut échouer ou être refusé et l'envoi d'un `PendingIntent` ne prouve pas un gain.

@@ -29,6 +29,41 @@ public final class ClaimActionPolicyTest {
         }
     }
 
+    @Test public void oneTapCanSendExactStepActionOutsideNightlyWindow() {
+        assertFalse(ClaimActionPolicy.eligible(
+            "com.weward", "Valider mes pas", false, true, false, at(12, 0)));
+        assertTrue(ClaimActionPolicy.eligibleOnDemand(
+            "com.weward", "Valider mes pas", false, true, false));
+        assertTrue(ClaimActionPolicy.eligibleOnDemand(
+            "com.winwalk.android", "Collect step coins", false, true, false));
+    }
+
+    @Test public void manualModeNeverRelaxesSafetyRestrictions() {
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            "com.weward", "Valider mes pas", true, false, false));
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            "com.weward", "Valider mes pas", false, false, false));
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            "com.weward", "Valider mes pas", false, true, true));
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            "com.weward", "Récupérer mes points", false, true, false));
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            "com.evil.fake", "Valider mes pas", false, true, false));
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            null, "Valider mes pas", false, true, false));
+        assertFalse(ClaimActionPolicy.eligibleOnDemand(
+            "com.weward", "Watch ad", false, true, false));
+    }
+
+    @Test public void nightlyGateRemainsRestrictedDespiteManualCapability() {
+        assertFalse(ClaimActionPolicy.eligible(
+            "com.weward", "Valider mes pas", false, true, false, at(21, 59)));
+        assertFalse(ClaimActionPolicy.eligible(
+            "com.weward", "Valider mes pas", false, true, false, at(23, 40)));
+        assertFalse(ClaimActionPolicy.eligible(
+            "com.weward", "Valider mes pas", false, true, false, null));
+    }
+
     @Test public void actionMustNotLaunchAnActivity() {
         assertFalse(ClaimActionPolicy.eligible(
             "com.weward", "Valider mes pas", true, false, false, at(22, 0)));

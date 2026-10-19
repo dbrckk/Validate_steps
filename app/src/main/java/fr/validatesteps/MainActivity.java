@@ -31,6 +31,7 @@ public final class MainActivity extends Activity {
     private LinearLayout content;
     private LinearLayout settingsContent;
     private LinearLayout providersSection;
+    private LinearLayout readinessSection;
     private StepRingView progress;
     private TextView scheduleStatus;
     private TextView stepSource;
@@ -39,6 +40,7 @@ public final class MainActivity extends Activity {
     private Switch scheduleSwitch;
     private Switch notificationSwitch;
     private boolean updating;
+    private int lastDirectActions = -1;
 
     private int dp(float value) { return DashboardStyles.dp(this, value); }
 
@@ -86,6 +88,10 @@ public final class MainActivity extends Activity {
         hero();
         space(content, 18);
         actions();
+        space(content, 26);
+        title(content, "PRÊT À VALIDER ?", "Touchez un indicateur pour configurer Android");
+        readinessSection = column();
+        content.addView(readinessSection);
         space(content, 28);
         title(content, "VOS APPLICATIONS", "4 services · états distincts");
         providersSection = column();
@@ -141,7 +147,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.13", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.14", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -193,7 +199,7 @@ public final class MainActivity extends Activity {
         content.addView(main, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        subtitle = label("Parcours assisté · ouvre les applications · crédit à vérifier",
+        subtitle = label("Actions directes + parcours assisté · crédits à vérifier",
             12, DashboardStyles.MUTED, false);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(dp(6), dp(13), dp(6), dp(5));
@@ -234,6 +240,104 @@ public final class MainActivity extends Activity {
         b.setClickable(true);
         b.setFocusable(true);
         return b;
+    }
+
+    /** Compact and actionable permission/availability dashboard. */
+    private void rebuildReadiness() {
+        if (readinessSection == null) return;
+        readinessSection.removeAllViews();
+        RunStore run = new RunStore(this);
+        boolean health = HealthReader.backgroundSupported() &&
+            checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
+        boolean exact = DailyScheduler.exactAllowed(this);
+        boolean scheduled = run.enabled();
+        boolean access = RewardActionListener.hasPermission(this);
+        boolean listening = new ActionBridgeState(this).enabled();
+
+        LinearLayout first = row();
+        readinessTile(first, "SANTÉ CONNECT", health,
+            health ? "Pas accessibles" : "Autorisation requise", () -> {
+                if (!HealthReader.backgroundSupported()) {
+                    toast("Lecture en arrière-plan non disponible sur cette version Android");
+                } else {
+                    requestPermissions(new String[]{
+                        HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND}, 10);
+                }
+            }, true);
+        readinessTile(first, "ALARME · 22 H", scheduled && exact,
+            !scheduled ? "À activer" : exact ? "Programmée" : "Horaire approximatif",
+            () -> {
+                if (!scheduled) {
+                    new RunStore(this).enable(true);
+                    DailyScheduler.schedule(this);
+                    DailyScheduler.scheduleRecovery(this, true);
+                    refresh();
+                    toast("Relevé quotidien à 22 h activé");
+                } else if (!exact) {
+                    Intent exactIntent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                    exactIntent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(exactIntent);
+                } else {
+                    toast("Relevé à 22 h activé");
+                }
+            }, false);
+        readinessSection.addView(first);
+
+        LinearLayout second = row();
+        readinessTile(second, "NOTIFICATIONS", access && listening,
+            !access ? "Accès Android requis" : listening ? "Actions actives" : "À activer",
+            () -> {
+                if (!access) {
+                    startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+                } else if (!listening) {
+                    notificationSwitch.setChecked(true);
+                } else {
+                    RewardActionListener.diagnoseConnectedNow(this);
+                    refresh();
+                    toast("Diagnostic des notifications actualisé");
+                }
+            }, true);
+        readinessTile(second, "UN APPUI", GuidedClaimService.connected(),
+            GuidedClaimService.connected() ? "Assistance prête" : "Configuration requise",
+            () -> {
+                if (!getPreferences(MODE_PRIVATE)
+                        .getBoolean("assistance_disclosed", false)) {
+                    discloseAccessibility();
+                } else {
+                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                }
+            }, false);
+        LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        secondLp.topMargin = dp(10);
+        readinessSection.addView(second, secondLp);
+    }
+
+    private void readinessTile(LinearLayout parent, String name, boolean ready,
+            String detail, Runnable press, boolean left) {
+        LinearLayout tile = column();
+        tile.setPadding(dp(14), dp(14), dp(10), dp(15));
+        tile.setBackground(DashboardStyles.stroke(this,
+            DashboardStyles.SURFACE, ready ? 0xff265447 : 0xff3b415a, 16, 1));
+        TextView header = label((ready ? "●  " : "○  ") + name,
+            12, ready ? DashboardStyles.ACCENT : DashboardStyles.WARNING, true);
+        header.setSingleLine(true);
+        header.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        tile.addView(header);
+        TextView description = label(detail, 12, DashboardStyles.MUTED, false);
+        description.setPadding(0, dp(9), 0, 0);
+        description.setMaxLines(2);
+        tile.addView(description);
+        tile.setClickable(true);
+        tile.setFocusable(true);
+        tile.setContentDescription(name + " : " + detail + ". Toucher pour configurer.");
+        tile.setOnClickListener(v -> press.run());
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            0, dp(91), 1f);
+        if (left) params.rightMargin = dp(5);
+        else params.leftMargin = dp(5);
+        parent.addView(tile, params);
     }
 
     private void rebuildProviders() {
@@ -487,28 +591,71 @@ public final class MainActivity extends Activity {
     }
 
     private void onClaimAll() {
-        if (!getPreferences(MODE_PRIVATE).getBoolean("assistance_disclosed", false)) {
+        if (new ClaimFlowState(this).active()) {
+            toast("Un parcours de validation est déjà en cours");
+            return;
+        }
+
+        // First, attempt provider-created background notification actions.
+        // A direct action needs a real user gesture here, not a 22:00 alarm,
+        // and stays subject to the same exact step-label and origin checks.
+        int direct = RewardActionListener.claimDirectNowFromUserTap(this);
+        lastDirectActions = direct;
+        refresh();
+
+        // With optional Accessibility consent, guide the remaining providers.
+        // The guided service skips any direct action just sent today.
+        boolean consent = getPreferences(MODE_PRIVATE)
+            .getBoolean("assistance_disclosed", false);
+        if (consent && GuidedClaimService.connected()) {
+            if (GuidedClaimService.begin(this)) {
+                toast(direct > 0
+                    ? direct + " action(s) directe(s) envoyée(s), parcours complémentaire lancé"
+                    : "Parcours assisté lancé · boutons des pas uniquement");
+            } else {
+                toast("Impossible de démarrer le parcours assisté");
+            }
+            return;
+        }
+
+        if (direct > 0) {
+            new AlertDialog.Builder(this)
+                .setTitle("Actions de pas envoyées")
+                .setMessage(direct + " commande(s) directe(s) transmise(s) aux " +
+                    "applications via leurs notifications. Cela ne confirme pas " +
+                    "le crédit des récompenses. Pour les autres services, " +
+                    "l'assistance facultative peut ouvrir les applications " +
+                    "et tenter leurs boutons visibles.")
+                .setPositiveButton("Configurer l'assistance", (d, w) -> {
+                    if (consent) startActivity(new Intent(
+                        Settings.ACTION_ACCESSIBILITY_SETTINGS));
+                    else discloseAccessibility();
+                })
+                .setNegativeButton("Terminer", null)
+                .show();
+            return;
+        }
+
+        if (!consent) {
             discloseAccessibility();
             return;
         }
-        if (!GuidedClaimService.connected()) {
-            new AlertDialog.Builder(this)
-                .setTitle("Activer l'assistance Android")
-                .setMessage("Le service facultatif n'est pas connecté. " +
-                    "Autorise Validate Steps dans Accessibilité pour activer le " +
-                    "parcours à un appui. Les applications s'ouvriront à l'écran.")
-                .setPositiveButton("Ouvrir les réglages", (d, w) ->
-                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)))
-                .setNegativeButton("Annuler", null).show();
-            return;
-        }
-        if (!GuidedClaimService.begin(this)) {
-            toast(new ClaimFlowState(this).active()
-                ? "Un parcours assisté est déjà en cours"
-                : "Impossible de démarrer : vérifie l'autorisation Accessibilité");
-            return;
-        }
-        toast("Parcours lancé · boutons des pas uniquement");
+
+        new AlertDialog.Builder(this)
+            .setTitle("Parcours assisté indisponible")
+            .setMessage(direct < 0
+                ? "Le service de notifications n'est pas disponible, et " +
+                    "l'assistance Accessibilité est désactivée. Configure " +
+                    "l'accès Android pour utiliser le bouton Tout valider."
+                : "Aucun bouton de pas direct n'a été trouvé dans les " +
+                    "notifications. Active l'assistance facultative pour " +
+                    "rechercher les boutons dans les applications.")
+            .setPositiveButton("Régler Accessibilité", (d, w) ->
+                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)))
+            .setNeutralButton("Accès aux notifications", (d, w) ->
+                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
+            .setNegativeButton("Annuler", null)
+            .show();
     }
 
     private void discloseAccessibility() {
@@ -607,14 +754,17 @@ public final class MainActivity extends Activity {
                 ? "●  AUTOMATIQUE À 22:00 · ACTIVE"
                 : "◌  ACTIVE · ALARME APPROXIMATIVE")
             : "○  AUTOMATISATION À 22 H DÉSACTIVÉE");
+        rebuildReadiness();
         rebuildProviders();
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
             + "\nGUIDED : interaction assistée · aucun crédit confirmé");
         if (subtitle != null) subtitle.setText(
-            GuidedClaimService.connected()
+            new ClaimFlowState(this).active()
                 ? new ClaimFlowState(this).summary()
-                : "Parcours à un appui · assistance Android à autoriser");
+                : lastDirectActions > 0
+                    ? lastDirectActions + " action(s) envoyée(s) · crédits non confirmés"
+                    : "Un appui : actions directes, puis parcours assisté si autorisé");
     }
 }
