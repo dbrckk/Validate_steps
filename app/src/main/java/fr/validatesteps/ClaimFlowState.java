@@ -39,6 +39,7 @@ public final class ClaimFlowState {
     public void report(String pkg, String result) {
         if (!GuidedClaimPolicy.isTarget(pkg)) return;
         prefs.edit().putString("result_" + pkg, result)
+            .putString("result_day_" + pkg, java.time.LocalDate.now().toString())
             .putString("summary", result).commit();
     }
 
