@@ -42,10 +42,12 @@ public final class GuidedNotificationToken {
             String nonce = p.getString("nonce", "");
             long issued = p.getLong("issued", 0);
             long elapsed = System.currentTimeMillis() - issued;
+            LocalDate date;
+            try { date = LocalDate.parse(p.getString("day", "")); }
+            catch (RuntimeException badStoredDate) { return false; }
             boolean valid = !nonce.isEmpty()
-                && LocalDate.now().toString().equals(p.getString("day", ""))
-                && elapsed >= 0 && elapsed < 120 * 60 * 1000L
-                && RetryPolicy.canRecover(ZonedDateTime.now())
+                && NotificationActionWindow.canStart(
+                    date, ZonedDateTime.now(), elapsed)
                 && MessageDigest.isEqual(
                     candidate.getBytes(StandardCharsets.UTF_8),
                     nonce.getBytes(StandardCharsets.UTF_8));
