@@ -130,6 +130,14 @@ public final class GuidedClaimService extends AccessibilityService {
             endOnDashboard();
             return;
         }
+        if (new ActionBridgeState(this).dispatchedToday(
+                target, java.time.LocalDate.now())) {
+            // Avoid a second claim attempt when an exact provider notification
+            // command was already sent earlier today (not yet settlement proof).
+            state.report(target, "Action directe déjà envoyée · crédit à vérifier");
+            finishCurrent(target);
+            return;
+        }
         Intent launch = getPackageManager().getLaunchIntentForPackage(target);
         if (launch == null) {
             state.report(target, "Application absente · à installer");
