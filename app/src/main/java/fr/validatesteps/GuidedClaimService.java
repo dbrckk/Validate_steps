@@ -39,9 +39,19 @@ public final class GuidedClaimService extends AccessibilityService {
     }
 
     public static void cancel(Context context) {
-        new ClaimFlowState(context).stop();
+        ClaimFlowState state = new ClaimFlowState(context);
+        String target = state.target();
+        if (target != null) {
+            state.report(target, "Parcours interrompu · validation non confirmée");
+            new NightTimeline(context).add(NightTimeline.Event.GUIDED_CANCELED,
+                java.time.LocalDate.now());
+        }
+        state.stop();
         GuidedClaimService instance = current;
-        if (instance != null) instance.handler.removeCallbacksAndMessages(null);
+        if (instance != null) {
+            instance.waitingForNext = true;
+            instance.handler.removeCallbacksAndMessages(null);
+        }
     }
 
     @Override protected void onServiceConnected() {
