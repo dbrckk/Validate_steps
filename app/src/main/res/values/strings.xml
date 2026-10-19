@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Validate Steps</string>
+    <string name="guided_accessibility_description">Assistance facultative et déclenchée manuellement : pendant une session limitée, lit les boutons visibles de WeWard, Macadam et Winwalk pour tenter d’actionner les commandes explicites de validation de pas. N’examine pas les autres applications, ne collecte pas de texte et ne confirme jamais de crédit.</string>
+</resources>

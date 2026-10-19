@@ -1,4 +1,4 @@
-# Validate Steps (v0.12) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.13) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -236,3 +236,53 @@ Le pont de notifications demeure **expérimental** et facultatif. Une action tel
 - Ni simulation de pas, ni accès à des API privées, ni contournement de validation publicitaire ou de l'interface du fournisseur.
 
 **État du but initial :** une commande envoyée en arrière-plan ne permet toujours pas de confirmer le crédit WeWard/Macadam/Winwalk. Aucun bouton officiellement documenté par les fournisseurs n'a été démontré compatible sur le téléphone. Les libellés génériques sont sciemment rejetés plutôt que de risquer des actions qui ne concernent pas les pas.
+
+
+## v0.13 — Refonte premium et « Tout valider » à un appui (mode assisté)
+
+### Interface graphique Android refondue
+- Tableau de bord **sombre** natif, cartes arrondies, accents turquoise, hiérarchie lisible sur Redmi.
+- Anneau de progression animé (objectif indicatif de 10 000 pas), **uniquement alimenté par la lecture Santé Connect**. L'objectif n'est pas un seuil universel des partenaires.
+- Une carte pour chacun des quatre services : **WeWard, Macadam, Winwalk et Sweatcoin**. Détection d'installation et accès direct à l'application ou à sa fiche Google Play.
+- Bouton central « **Tout valider** » et diagnostic du parcours assisté, distinct de l'option de notification en arrière-plan.
+- Interrupteurs de relevé nocturne et d'actions de notifications, réglages Android regroupés, confirmation avant désactivation, historique local et copie volontaire.
+- Source Java Android native, sans SDK web ni ressources distantes.
+
+### « Tout valider » : assistance déterministe et volontaire
+
+Cette option **ouvre les applications à l'écran** : elle n'est PAS une validation invisible. Elle est disponible seulement après **consentement explicite** et autorisation spéciale d'**Accessibilité** accordée dans Android.
+
+Au démarrage demandé par l'utilisateur, un petit script local :
+1. Ouvre WeWard, puis cherche **exactement** un bouton visible « Valider mes pas » ou « Valider les pas ». Tente le clic une seule fois.
+2. Ouvre Macadam et cherche les libellés explicites de validation des pas. Aucun clic générique « Récupérer mes pièces ».
+3. Ouvre Winwalk et recherche uniquement un libellé explicitement lié aux pièces issues des pas. Les annonces et offres publicitaires sont ignorées.
+4. Ouvre Sweatcoin brièvement pour favoriser sa propre synchronisation. Il n'y a **aucun clic supposé créditer les Sweatcoins**.
+
+Le service écoute les changements de contenu uniquement pour les **trois packages autorisés** (les interfaces des autres applications ne sont pas analysées). Les étiquettes vues ne sont ni sauvegardées ni envoyées ; seule une **tentative de clic** ou l'absence du bouton est enregistrée localement. L'utilisateur peut désactiver l'assistance dans Android à tout moment. Le parcours est limité dans le temps et n'utilise ni mot de passe, ni OCR, ni coordonnées, ni API privée, ni automatisation d'annonces.
+
+**Résultat honnête :** le fait de cliquer ou même de trouver un bouton ne prouve pas que le serveur d'un fournisseur a crédité une récompense. Selon les versions installées, les boutons réels peuvent être différents ou absents. La validation totale ne peut être garantie sans observation des interfaces réelles et du solde effectivement obtenu. Certains fournisseurs imposent une validation manuelle et une automatisation peut enfreindre leurs conditions ; ne pas présenter cette fonction comme officiellement supportée par leurs éditeurs.
+
+### 22 h : le mode discret existant est conservé
+L'alarme de 22 h continue de **relever les vrais pas** et de tenter uniquement les actions de notifications directes, strictement filtrées et activées par consentement. Elle **ne lance pas** le service d'assistance ni les applications sur un écran verrouillé. Android impose des restrictions aux ouvertures d'activité en arrière-plan.
+
+### Autorisation et publication
+L'API Accessibilité est sensible et n'est **pas** déclarée à tort comme « outil d'accessibilité » (`isAccessibilityTool=false`). Avant diffusion Google Play, le développeur doit effectuer la déclaration AccessibilityService, fournir une divulgation claire et recueillir le consentement, en plus de respecter les règles de Google Play et des applications partenaires.
+
+Sources :
+- https://developer.android.com/guide/topics/ui/accessibility/service
+- https://support.google.com/googleplay/android-developer/answer/10964491?hl=fr
+- https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses
+- https://help.macadam.app/fr/articles/469049-comment-fonctionnent-la-validation-des-pas-et-les-recompenses
+
+
+### Raccourci de la notification de 22 h
+
+Si les notifications Android sont autorisées et que la lecture de pas du jour aboutit pendant la fenêtre 22:00–23:40, la notification affiche **« Tout valider · assisté »**.
+
+- Le **clic sur cette action** est un geste explicite de l'utilisateur ; elle peut démarrer le parcours assisté **en un appui** si l'autorisation Accessibilité a déjà été accordée et que le consentement applicatif a été accepté.
+- Le clic sur le **texte de la notification** ouvre seulement le tableau de bord, sans cliquer sur un fournisseur.
+- L'action contient un **jeton aléatoire à usage unique**, vérifié par l'application avec contrôle du jour local, de la fenêtre de récupération et d'une validité maximale de deux heures ; une simple ouverture externe de l'activité ne peut pas lancer la séquence.
+- Si l'autorisation manque, l'application affiche la configuration nécessaire. Elle ne contourne jamais les restrictions du système.
+- Une ouverture ou un clic assisté n'est **pas** une preuve de crédit. Les notifications tierces peuvent proposer zéro action directe compatible.
+
+Le moteur assisté refuse un second parcours simultané et limite la fréquence des inspections de l'arbre d'accessibilité pour réduire la charge CPU.

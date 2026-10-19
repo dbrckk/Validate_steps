@@ -10,10 +10,11 @@
         <package android:name="com.weward" />
         <package android:name="com.macadamapp" />
         <package android:name="com.winwalk.android" />
+        <package android:name="in.sweatco.app" />
     </queries>
-    <application android:allowBackup="false" android:label="Validate Steps"
-                 android:icon="@android:drawable/ic_menu_today"
-                 android:supportsRtl="true" android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <application android:allowBackup="false" android:label="@string/app_name"
+                 android:icon="@drawable/ic_launcher_steps"
+                 android:supportsRtl="true" android:theme="@android:style/Theme.Material.NoActionBar">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,6 +25,17 @@
                 <category android:name="android.intent.category.HEALTH_PERMISSIONS" />
             </intent-filter>
         </activity>
+        <!-- User-initiated only; Android requires explicit Accessibility permission. -->
+        <service android:name=".GuidedClaimService"
+                 android:label="Validate Steps · Assistance aux pas"
+                 android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                 android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data android:name="android.accessibilityservice"
+                       android:resource="@xml/guided_accessibility" />
+        </service>
         <!-- Requires explicit user grant in Android Notification Access settings. -->
         <service android:name=".RewardActionListener"
                  android:label="Validate Steps : actions directes de notifications"

@@ -74,6 +74,19 @@ public final class ActionBridgeState {
             "\nACTION ENVOYÉE ≠ RÉCOMPENSE CRÉDITÉE.";
     }
 
+    /** A compact, honest, provider-specific notification result for the dashboard. */
+    public String brief(String packageName) {
+        if (!ClaimActionPolicy.isProvider(packageName)) return "Aucune action observée";
+        String seen = prefs.getString("seen_" + packageName, "");
+        if (!LocalDate.now().toString().equals(seen)) return "Aucune action observée";
+        String attempted = prefs.getString("date_" + packageName, "");
+        if (LocalDate.now().toString().equals(attempted))
+            return "Action Android : " +
+                prefs.getString("status_" + packageName, "tentative non confirmée");
+        return "Notification : " +
+            prefs.getString("category_" + packageName, "non reconnue");
+    }
+
     private String status(String packageName) {
         String seen = prefs.getString("seen_" + packageName, "");
         String diagnostic = seen.isEmpty() ? "notification non observée" :
