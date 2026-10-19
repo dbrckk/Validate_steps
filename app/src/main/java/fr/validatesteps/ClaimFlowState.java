@@ -57,6 +57,9 @@ public final class ClaimFlowState {
     }
 
     public String result(String pkg) {
+        if (!java.time.LocalDate.now().toString().equals(
+                prefs.getString("result_day_" + pkg, "")))
+            return "Non vérifié aujourd'hui";
         return prefs.getString("result_" + pkg, "Non vérifié aujourd'hui");
     }
 
