@@ -1,4 +1,4 @@
-# Validate Steps (v0.14) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.15) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -313,3 +313,19 @@ La programmation existante reste distincte : lecture Santé Connect par alarme �
 ### Validation encore nécessaire
 
 Les actions réellement exposées sur ton Redmi par chaque application doivent être vérifiées en situation. Sans API officielle de crédit, **il n'existe pas de preuve universelle de validation automatique des récompenses** ; un clic Accessibilité peut échouer ou être refusé et l'envoi d'un `PendingIntent` ne prouve pas un gain.
+
+
+## v0.15 — Assistance Android plus robuste et commande d'arrêt
+
+La procédure « Tout valider » reste **assistée**, uniquement sur un appui explicite de l'utilisateur. L'assistance Accessibilité peut chercher et appuyer sur les **boutons visibles** et reconnus de WeWard, Macadam et Winwalk ; elle ne peut pas confirmer un crédit côté fournisseur. Sweatcoin dispose de sa propre conversion des pas.
+
+### Corrections
+
+- La recherche des boutons visibles est désormais limitée à **400 nœuds par événement**, profondeur maximale 20 et jusqu'à 60 enfants par nœud. La version précédente limitait seulement la profondeur et pouvait parcourir un nombre très élevé d'éléments sur une interface complexe.
+- Une vue qui disparaît, un arbre Android momentanément indisponible ou un clic rejeté par le système ne doit plus provoquer la fermeture brutale du service d'assistance.
+- Si le service Accessibilité est **déconnecté**, les références au service sont réinitialisées et les relances en attente sont annulées.
+- Un bouton **« Arrêter le parcours en cours »** s'affiche dans le tableau de bord pendant l'assistance. L'arrêt annule les actions futures et laisse un statut non confirmé, jamais un crédit inventé.
+- **Avant 22 h**, « Tout valider » affiche un avertissement : les applications qui ne permettent qu'une validation quotidienne risquent de ne pas comptabiliser les pas encore effectués. L'utilisateur choisit de valider immédiatement ou de programmer le relevé à 22 h. Programmer le relevé n'active pas automatiquement les droits de notification manquants.
+- Tests unitaires de limite globale de parcours et de la règle horaire.
+
+**Limites inchangées :** Android peut limiter l'accès aux notifications ou à l'Accessibilité ; l'utilisation des interfaces tierces n'est pas une validation en arrière-plan. Les actions de notifications à 22 h ne fonctionnent que si les fournisseurs les exposent ; elles ne sont pas une preuve de gain réel. Aucun CAPTCHA, publicité ou contrôle d'identité n'est contourné.

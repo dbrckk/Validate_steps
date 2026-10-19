@@ -39,9 +39,19 @@ public final class GuidedClaimService extends AccessibilityService {
     }
 
     public static void cancel(Context context) {
-        new ClaimFlowState(context).stop();
+        ClaimFlowState state = new ClaimFlowState(context);
+        String target = state.target();
+        if (target != null) {
+            state.report(target, "Parcours interrompu · validation non confirmée");
+            new NightTimeline(context).add(NightTimeline.Event.GUIDED_CANCELED,
+                java.time.LocalDate.now());
+        }
+        state.stop();
         GuidedClaimService instance = current;
-        if (instance != null) instance.handler.removeCallbacksAndMessages(null);
+        if (instance != null) {
+            instance.waitingForNext = true;
+            instance.handler.removeCallbacksAndMessages(null);
+        }
     }
 
     @Override protected void onServiceConnected() {
@@ -61,6 +71,13 @@ public final class GuidedClaimService extends AccessibilityService {
         handler.removeCallbacksAndMessages(null);
     }
 
+    @Override public boolean onUnbind(Intent intent) {
+        if (current == this) current = null;
+        handler.removeCallbacksAndMessages(null);
+        new ClaimFlowState(this).stop();
+        return super.onUnbind(intent);
+    }
+
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         ClaimFlowState state = new ClaimFlowState(this);
         String target = state.target();
@@ -71,29 +88,41 @@ public final class GuidedClaimService extends AccessibilityService {
         long now = android.os.SystemClock.uptimeMillis();
         if (now - previousScanMs < 300) return;
         previousScanMs = now;
-        AccessibilityNodeInfo root = getRootInActiveWindow();
-        if (root == null || root.getPackageName() == null ||
-                !target.contentEquals(root.getPackageName())) return;
-
-        AccessibilityNodeInfo button = findExplicitAction(root, target, 0);
-        if (button != null) {
-            // At most one UI click attempt for each app in a single manual run.
-            waitingForNext = true;
-            boolean performed = button.performAction(AccessibilityNodeInfo.ACTION_CLICK);
-            state.report(target, performed
-                ? "Clic de validation tenté · crédit à vérifier"
-                : "Bouton trouvé mais clic refusé");
-            new NightTimeline(this).add(performed
-                ? NightTimeline.Event.GUIDED_CLICK_ATTEMPTED
-                : NightTimeline.Event.GUIDED_CLICK_REFUSED, java.time.LocalDate.now());
-            handler.postDelayed(() -> finishCurrent(target), 2500L);
+        // A third-party UI can mutate or detach during inspection. Never let
+        // its dynamic accessibility tree crash our service on the main thread.
+        try {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null || root.getPackageName() == null ||
+                    !target.contentEquals(root.getPackageName())) return;
+            AccessibilityNodeInfo button = findExplicitAction(root, target, 0,
+                new AccessibilityScanBudget());
+            if (button != null) {
+                // At most one UI click attempt for each app in a single manual run.
+                waitingForNext = true;
+                boolean performed;
+                try {
+                    performed = button.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                } catch (RuntimeException detachedNode) {
+                    performed = false;
+                }
+                state.report(target, performed
+                    ? "Clic de validation tenté · crédit à vérifier"
+                    : "Bouton trouvé mais clic refusé");
+                new NightTimeline(this).add(performed
+                    ? NightTimeline.Event.GUIDED_CLICK_ATTEMPTED
+                    : NightTimeline.Event.GUIDED_CLICK_REFUSED, java.time.LocalDate.now());
+                handler.postDelayed(() -> finishCurrent(target), 2500L);
+            }
+        } catch (RuntimeException staleUiTree) {
+            // Ignore transient third-party view changes. The bounded retry
+            // window will report a missing button if no stable view appears.
         }
     }
 
-    /** Depth is capped, and exact provider-specific labels are mandatory. */
+    /** Both depth and TOTAL visited node count are capped per event. */
     private AccessibilityNodeInfo findExplicitAction(AccessibilityNodeInfo node,
-            String pkg, int depth) {
-        if (node == null || depth > 24) return null;
+            String pkg, int depth, AccessibilityScanBudget budget) {
+        if (node == null || !budget.visit(depth)) return null;
         if (!node.isVisibleToUser() || !node.isEnabled()) return null;
         CharSequence sourcePackage = node.getPackageName();
         if (sourcePackage != null && !pkg.contentEquals(sourcePackage)) return null;
@@ -108,10 +137,10 @@ public final class GuidedClaimService extends AccessibilityService {
                 clickable = clickable.getParent();
             }
         }
-        int count = Math.min(node.getChildCount(), 80);
-        for (int i = 0; i < count; i++) {
+        int count = Math.min(node.getChildCount(), AccessibilityScanBudget.MAX_CHILDREN);
+        for (int i = 0; i < count && !budget.exhausted(); i++) {
             AccessibilityNodeInfo found =
-                findExplicitAction(node.getChild(i), pkg, depth + 1);
+                findExplicitAction(node.getChild(i), pkg, depth + 1, budget);
             if (found != null) return found;
         }
         return null;

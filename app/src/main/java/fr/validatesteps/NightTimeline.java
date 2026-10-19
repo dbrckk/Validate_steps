@@ -20,7 +20,7 @@ public final class NightTimeline {
         MANUAL_DIRECT_REQUESTED,
         GUIDED_STARTED, GUIDED_CLICK_ATTEMPTED, GUIDED_CLICK_REFUSED,
         GUIDED_BUTTON_MISSING, GUIDED_APP_ABSENT, GUIDED_OPEN_BLOCKED,
-        GUIDED_FINISHED
+        GUIDED_FINISHED, GUIDED_CANCELED
     }
 
     private static final Object LOCK = new Object();

@@ -20,6 +20,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -36,6 +37,7 @@ public final class MainActivity extends Activity {
     private TextView scheduleStatus;
     private TextView stepSource;
     private TextView subtitle;
+    private TextView stopGuideButton;
     private TextView timelineText;
     private Switch scheduleSwitch;
     private Switch notificationSwitch;
@@ -147,7 +149,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.14", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.15", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -198,6 +200,18 @@ public final class MainActivity extends Activity {
         main.setOnClickListener(v -> onClaimAll());
         content.addView(main, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        stopGuideButton = action("■  Arrêter le parcours en cours",
+            0xff3a2736, DashboardStyles.TEXT, () -> {
+                GuidedClaimService.cancel(this);
+                toast("Parcours assisté arrêté");
+                refresh();
+            });
+        stopGuideButton.setVisibility(View.GONE);
+        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
+        stopParams.topMargin = dp(9);
+        content.addView(stopGuideButton, stopParams);
 
         subtitle = label("Actions directes + parcours assisté · crédits à vérifier",
             12, DashboardStyles.MUTED, false);
@@ -595,7 +609,36 @@ public final class MainActivity extends Activity {
             toast("Un parcours de validation est déjà en cours");
             return;
         }
+        // An early claim can lock today's tally before all steps are earned.
+        // Require an explicit choice rather than silently spending the claim.
+        if (ClaimTimingPolicy.risksPartialDayClaim(LocalTime.now())) {
+            new AlertDialog.Builder(this)
+                .setTitle("Valider les pas avant 22 h ?")
+                .setMessage("Certaines applications ne permettent qu'une validation " +
+                    "par jour. Une validation maintenant pourrait ne pas " +
+                    "inclure les pas que tu feras plus tard.\n\n" +
+                    "Tu peux continuer immédiatement ou programmer le relevé " +
+                    "de 22 h (les crédits des partenaires restent non garantis).")
+                .setPositiveButton("Valider maintenant", (d, w) -> executeClaimAll())
+                .setNeutralButton("Programmer 22 h", (d, w) -> {
+                    new RunStore(this).enable(true);
+                    DailyScheduler.schedule(this);
+                    DailyScheduler.scheduleRecovery(this, true);
+                    refresh();
+                    toast("Relevé programmé à 22 h · active aussi les actions de notifications");
+                })
+                .setNegativeButton("Annuler", null)
+                .show();
+            return;
+        }
+        executeClaimAll();
+    }
 
+    private void executeClaimAll() {
+        if (new ClaimFlowState(this).active()) {
+            toast("Un parcours de validation est déjà en cours");
+            return;
+        }
         // First, attempt provider-created background notification actions.
         // A direct action needs a real user gesture here, not a 22:00 alarm,
         // and stays subject to the same exact step-label and origin checks.
@@ -760,6 +803,8 @@ public final class MainActivity extends Activity {
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
             + "\nGUIDED : interaction assistée · aucun crédit confirmé");
+        if (stopGuideButton != null) stopGuideButton.setVisibility(
+            new ClaimFlowState(this).active() ? View.VISIBLE : View.GONE);
         if (subtitle != null) subtitle.setText(
             new ClaimFlowState(this).active()
                 ? new ClaimFlowState(this).summary()
