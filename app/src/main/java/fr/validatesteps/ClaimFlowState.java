@@ -1,0 +1,66 @@
+package fr.validatesteps;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+/**
+ * Private bounded state machine for one explicitly user-started guided run.
+ * Records attempted Android interactions, NEVER confirmed reward credits.
+ */
+public final class ClaimFlowState {
+    private static final long MAX_AGE_MS = 120_000L;
+    private final SharedPreferences prefs;
+
+    public ClaimFlowState(Context context) {
+        prefs = context.getSharedPreferences("guided_claim_flow", Context.MODE_PRIVATE);
+    }
+
+    public void start() {
+        prefs.edit().putBoolean("active", true)
+            .putLong("started", System.currentTimeMillis())
+            .putInt("index", 0)
+            .putString("summary", "Démarrage du parcours assisté").commit();
+    }
+
+    public boolean active() {
+        return prefs.getBoolean("active", false)
+            && System.currentTimeMillis() - prefs.getLong("started", 0) < MAX_AGE_MS
+            && System.currentTimeMillis() >= prefs.getLong("started", 0);
+    }
+
+    public int index() { return prefs.getInt("index", 0); }
+
+    public String target() {
+        int i = index();
+        return active() && i >= 0 && i < GuidedClaimPolicy.ORDER.length
+            ? GuidedClaimPolicy.ORDER[i] : null;
+    }
+
+    public void report(String pkg, String result) {
+        if (!GuidedClaimPolicy.isTarget(pkg)) return;
+        prefs.edit().putString("result_" + pkg, result)
+            .putString("summary", result).commit();
+    }
+
+    public boolean advance(String expectedPkg) {
+        if (!active() || !expectedPkg.equals(target())) return false;
+        int next = index() + 1;
+        prefs.edit().putInt("index", next)
+            .putBoolean("active", next < GuidedClaimPolicy.ORDER.length).commit();
+        return next < GuidedClaimPolicy.ORDER.length;
+    }
+
+    public void stop() {
+        prefs.edit().putBoolean("active", false).putString("summary",
+            "Parcours arrêté ou terminé").commit();
+    }
+
+    public String result(String pkg) {
+        return prefs.getString("result_" + pkg, "Non vérifié aujourd'hui");
+    }
+
+    public String summary() {
+        return (active() ? "Parcours en cours" : "Parcours inactif") +
+            " · " + prefs.getString("summary", "Prêt");
+    }
+}
