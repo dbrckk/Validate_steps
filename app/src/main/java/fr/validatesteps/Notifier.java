@@ -47,7 +47,11 @@ public final class Notifier {
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             builder.addAction(new Notification.Action.Builder(
                 android.R.drawable.ic_media_play, "Tout valider · assisté", pending).build());
-            builder.setContentIntent(pending);
+            // Tapping the notification body only opens diagnostics, not a claim.
+            PendingIntent viewOnly = PendingIntent.getActivity(context, 1301,
+                new Intent(context, MainActivity.class),
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            builder.setContentIntent(viewOnly);
         }
         Notification notification = builder.build();
         manager.notify(2200, notification);
