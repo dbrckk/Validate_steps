@@ -8,11 +8,12 @@ public final class ProviderPackages {
     public static final String WEWARD = "com.weward";
     public static final String MACADAM = "com.macadamapp";
     public static final String WINWALK = "com.winwalk.android";
+    public static final String SWEATCOIN = "in.sweatco.app";
 
     private ProviderPackages() {}
 
     public static boolean installed(Context context, String packageName) {
-        if (!ClaimActionPolicy.isProvider(packageName)) return false;
+        if (!GuidedClaimPolicy.isTarget(packageName)) return false;
         try {
             context.getPackageManager().getPackageInfo(packageName,
                 PackageManager.PackageInfoFlags.of(0));
