@@ -1,4 +1,4 @@
-# Validate Steps (v0.15) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.16) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -329,3 +329,18 @@ La procédure « Tout valider » reste **assistée**, uniquement sur un appui ex
 - Tests unitaires de limite globale de parcours et de la règle horaire.
 
 **Limites inchangées :** Android peut limiter l'accès aux notifications ou à l'Accessibilité ; l'utilisation des interfaces tierces n'est pas une validation en arrière-plan. Les actions de notifications à 22 h ne fonctionnent que si les fournisseurs les exposent ; elles ne sont pas une preuve de gain réel. Aucun CAPTCHA, publicité ou contrôle d'identité n'est contourné.
+
+
+## v0.16 — Reprise dès que Santé Connect est de nouveau autorisé
+
+Lorsqu'une lecture automatique nocturne échouait pour `permission_missing`, le système arrêtait les secours de cette nuit, ce qui était approprié **tant que l'accès restait refusé**. Le redonner depuis les réglages Android ne relançait toutefois pas nécessairement le relevé du jour.
+
+Cette version détecte le retour des autorisations `READ_STEPS` et `READ_HEALTH_DATA_IN_BACKGROUND` à l'ouverture du tableau de bord ou au retour du dialogue Android :
+
+- Seulement si le relevé à 22 h a été activé, que le dernier échec du **jour courant** était `permission_missing`, et qu'il est encore entre **22 h et 23 h 40**.
+- Insère **un seul** audit Santé Connect du jour dans la file WorkManager. Plusieurs passages par le tableau de bord n'engendrent pas de doublons.
+- Ajoute `AUDIT_PERMISSION_RECOVERED` au journal privé, pour expliquer pourquoi une lecture complémentaire a été lancée.
+- Ne déclenche **aucun** bouton ou parcours de validation dans les applications tierces à cette occasion. Un relevé réussi ne confirme pas un crédit WeWard/Macadam/Winwalk.
+- Tests unitaires pour les autorisations absentes, le service désactivé, la fenêtre expirée, l'état déjà récupéré, et les erreurs n'étant pas des refus de permission.
+
+Les travaux Android restent soumis à la planification système et peuvent être retardés par HyperOS ; aucun accès ni crédit n'est fabriqué.
