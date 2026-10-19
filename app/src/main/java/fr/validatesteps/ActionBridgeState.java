@@ -20,6 +20,17 @@ public final class ActionBridgeState {
         prefs.edit().putBoolean("enabled", value).commit();
     }
 
+    /**
+     * A dispatched PendingIntent does not prove provider settlement.
+     * Avoid an immediate second UI tap in the same user-started workflow.
+     */
+    public boolean dispatchedToday(String packageName, LocalDate day) {
+        return ClaimActionPolicy.isProvider(packageName) && day != null
+            && day.toString().equals(prefs.getString("date_" + packageName, ""))
+            && "action_envoyee_credit_non_confirme".equals(
+                prefs.getString("status_" + packageName, ""));
+    }
+
     public boolean alreadyAttempted(String packageName, LocalDate day) {
         return !ClaimRetryPolicy.allowed(day,
             prefs.getString("date_" + packageName, ""),
