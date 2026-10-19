@@ -131,9 +131,9 @@ public final class MainActivity extends Activity {
 
     private void header() {
         LinearLayout row = row();
-        TextView mark = label("◈", 28, DashboardStyles.ACCENT, true);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(DashboardStyles.round(this, DashboardStyles.SURFACE_RAISED, 16));
+        ImageView mark = new ImageView(this);
+        mark.setImageResource(R.drawable.ic_launcher_steps);
+        mark.setContentDescription("Validate Steps");
         row.addView(mark, new LinearLayout.LayoutParams(dp(54), dp(54)));
         LinearLayout titles = column();
         titles.setPadding(dp(12), 0, 0, 0);
