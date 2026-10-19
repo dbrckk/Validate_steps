@@ -43,7 +43,7 @@ public final class RewardActionListener extends NotificationListenerService {
     /** Called by alarm and fallback; actions are gated by time and consent. */
     public static void inspectConnectedNow() {
         RewardActionListener instance = active;
-        if (instance != null) instance.inspectActiveNotifications(true);
+        if (instance != null) instance.inspectActiveNotifications(true, false);
     }
 
     /**
@@ -56,14 +56,36 @@ public final class RewardActionListener extends NotificationListenerService {
             new ActionBridgeState(context).inspected(false);
             return false;
         }
-        instance.inspectActiveNotifications(false);
+        instance.inspectActiveNotifications(false, false);
         return true;
+    }
+
+    /**
+     * Only called synchronously by MainActivity's explicit "Tout valider" tap.
+     * Does not enable unattended automation and never opens an Activity.
+     * Returns -1 when Android's listener is unavailable, otherwise the number
+     * of dispatched provider actions (NOT the number of credited rewards).
+     */
+    public static int claimDirectNowFromUserTap(Context context) {
+        if (!hasPermission(context)) return -1;
+        RewardActionListener instance = active;
+        if (instance == null) {
+            try {
+                requestRebind(new ComponentName(context, RewardActionListener.class));
+            } catch (RuntimeException ignored) {
+                // The user can open the system Notification Access settings.
+            }
+            return -1;
+        }
+        new NightTimeline(context).add(NightTimeline.Event.MANUAL_DIRECT_REQUESTED,
+            LocalDate.now());
+        return instance.inspectActiveNotifications(true, true);
     }
 
     @Override public void onListenerConnected() {
         super.onListenerConnected();
         active = this;
-        inspectActiveNotifications(true);
+        inspectActiveNotifications(true, false);
     }
 
     @Override public void onListenerDisconnected() {
@@ -80,29 +102,31 @@ public final class RewardActionListener extends NotificationListenerService {
 
     @Override public void onNotificationPosted(StatusBarNotification notification) {
         if (!new ActionBridgeState(this).enabled()) return;
-        inspect(notification, true);
+        inspect(notification, true, false);
     }
 
-    private void inspectActiveNotifications(boolean allowDispatch) {
+    private int inspectActiveNotifications(boolean allowDispatch, boolean onDemand) {
         ActionBridgeState store = new ActionBridgeState(this);
-        // No automatic reading of notifications unless explicitly enabled.
-        // A manual diagnostic scan is the only exception.
-        if (allowDispatch && !store.enabled()) return;
+        // Unattended execution requires explicit opt-in. The separate onDemand
+        // path is only entered from a real foreground button tap.
+        if (allowDispatch && !onDemand && !store.enabled()) return 0;
+        int dispatched = 0;
         try {
             StatusBarNotification[] notifications = getActiveNotifications();
             if (notifications != null) {
                 for (StatusBarNotification item : notifications) {
-                    inspect(item, allowDispatch);
+                    if (inspect(item, allowDispatch, onDemand)) dispatched++;
                 }
             }
             store.inspected(true);
         } catch (RuntimeException disconnected) {
             store.inspected(false);
         }
+        return dispatched;
     }
 
-    private synchronized void inspect(StatusBarNotification sbn, boolean allowDispatch) {
-        if (sbn == null || !ClaimActionPolicy.isProvider(sbn.getPackageName())) return;
+    private synchronized boolean inspect(StatusBarNotification sbn, boolean allowDispatch, boolean onDemand) {
+        if (sbn == null || !ClaimActionPolicy.isProvider(sbn.getPackageName())) return false;
         ActionBridgeState store = new ActionBridgeState(this);
         String packageName = sbn.getPackageName();
 
@@ -112,14 +136,14 @@ public final class RewardActionListener extends NotificationListenerService {
             .atZone(ZoneId.systemDefault()).toLocalDate();
         if (!day.equals(postedDay)) {
             store.noteSeen(packageName, "notification_ancienne");
-            return;
+            return false;
         }
 
         Notification notification = sbn.getNotification();
         if (notification == null || notification.actions == null ||
             notification.actions.length == 0) {
             store.noteSeen(packageName, "notification_sans_bouton");
-            return;
+            return false;
         }
 
         String observed = "notification_sans_bouton";
@@ -147,15 +171,24 @@ public final class RewardActionListener extends NotificationListenerService {
 
             if (!"action_directe_compatible".equals(diagnostic)) continue;
             store.noteSeen(packageName, diagnostic);
-            if (!allowDispatch || !new RunStore(this).enabled() ||
-                !store.enabled() || !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now()) ||
-                store.alreadyAttempted(packageName, day)) return;
-            // Same strict label test that is exercised in the unit tests.
-            if (!ClaimActionPolicy.eligible(packageName, label,
-                    opensActivity, isBackgroundType, requiresInput, ZonedDateTime.now())) return;
-            if (!store.reserve(packageName, day)) return;
+            if (!allowDispatch || store.alreadyAttempted(packageName, day))
+                return false;
+            if (!onDemand && (!new RunStore(this).enabled() ||
+                    !store.enabled() || !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now())))
+                return false;
+            // Both modes retain the EXACT same security filter. Only the
+            // explicitly user-initiated mode relaxes the 22:00 time restriction.
+            boolean allowed = onDemand
+                ? ClaimActionPolicy.eligibleOnDemand(packageName, label,
+                    opensActivity, isBackgroundType, requiresInput)
+                : ClaimActionPolicy.eligible(packageName, label,
+                    opensActivity, isBackgroundType, requiresInput, ZonedDateTime.now());
+            if (!allowed) return false;
+            if (!store.reserve(packageName, day)) return false;
+            boolean sent = false;
             try {
                 pending.send();
+                sent = true;
                 store.record(packageName, "action_envoyee_credit_non_confirme");
                 new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_DISPATCHED, day);
             } catch (PendingIntent.CanceledException cancelled) {
@@ -165,8 +198,9 @@ public final class RewardActionListener extends NotificationListenerService {
                 store.record(packageName, "erreur_declenchement");
                 new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_ERROR, day);
             }
-            return;
+            return sent;
         }
         store.noteSeen(packageName, observed);
+        return false;
     }
 }
