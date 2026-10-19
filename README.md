@@ -273,3 +273,16 @@ Sources :
 - https://support.google.com/googleplay/android-developer/answer/10964491?hl=fr
 - https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses
 - https://help.macadam.app/fr/articles/469049-comment-fonctionnent-la-validation-des-pas-et-les-recompenses
+
+
+### Raccourci de la notification de 22 h
+
+Si les notifications Android sont autorisées et que la lecture de pas du jour aboutit pendant la fenêtre 22:00–23:40, la notification affiche **« Tout valider · assisté »**.
+
+- Le **clic sur cette action** est un geste explicite de l'utilisateur ; elle peut démarrer le parcours assisté **en un appui** si l'autorisation Accessibilité a déjà été accordée et que le consentement applicatif a été accepté.
+- Le clic sur le **texte de la notification** ouvre seulement le tableau de bord, sans cliquer sur un fournisseur.
+- L'action contient un **jeton aléatoire à usage unique**, vérifié par l'application avec contrôle du jour local, de la fenêtre de récupération et d'une validité maximale de deux heures ; une simple ouverture externe de l'activité ne peut pas lancer la séquence.
+- Si l'autorisation manque, l'application affiche la configuration nécessaire. Elle ne contourne jamais les restrictions du système.
+- Une ouverture ou un clic assisté n'est **pas** une preuve de crédit. Les notifications tierces peuvent proposer zéro action directe compatible.
+
+Le moteur assisté refuse un second parcours simultané et limite la fréquence des inspections de l'arbre d'accessibilité pour réduire la charge CPU.
