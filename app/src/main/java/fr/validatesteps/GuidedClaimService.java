@@ -23,14 +23,16 @@ public final class GuidedClaimService extends AccessibilityService {
     private static volatile GuidedClaimService current;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean waitingForNext;
+    private long previousScanMs;
 
     public static boolean connected() { return current != null; }
 
     public static boolean begin(Context context) {
         GuidedClaimService instance = current;
-        if (instance == null) return false;
+        if (instance == null || new ClaimFlowState(context).active()) return false;
+        instance.handler.removeCallbacksAndMessages(null);
         new ClaimFlowState(context).start();
-        instance.handler.post(() -> instance.launchNext());
+        instance.handler.post(instance::launchNext);
         return true;
     }
 
@@ -64,6 +66,9 @@ public final class GuidedClaimService extends AccessibilityService {
                 event.getPackageName() == null ||
                 !target.contentEquals(event.getPackageName())) return;
         if (ProviderPackages.SWEATCOIN.equals(target)) return;
+        long now = android.os.SystemClock.uptimeMillis();
+        if (now - previousScanMs < 300) return;
+        previousScanMs = now;
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root == null || root.getPackageName() == null ||
                 !target.contentEquals(root.getPackageName())) return;
