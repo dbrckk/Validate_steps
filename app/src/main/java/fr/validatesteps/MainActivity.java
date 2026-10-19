@@ -609,7 +609,9 @@ public final class MainActivity extends Activity {
             : "○  AUTOMATISATION À 22 H DÉSACTIVÉE");
         rebuildProviders();
         if (timelineText != null) timelineText.setText(
-            new NightTimeline(this).recent());
+            new NightTimeline(this).recent()
+            + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
+            + "\nGUIDED : interaction assistée · aucun crédit confirmé");
         if (subtitle != null) subtitle.setText(
             GuidedClaimService.connected()
                 ? new ClaimFlowState(this).summary()
