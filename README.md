@@ -1,6 +1,6 @@
-# Validate Steps v1.0.0 — relevé Android stable à 22 h
+# Validate Steps v1.1.0 — mode automatique à 22 h sans assistance à un appui
 
-Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et proposer une assistance facultative pour les applications de récompenses. Le code est compilé et contrôlé dans GitHub Actions. **Aucun mécanisme autorisé ne garantit le crédit automatique de tous les fournisseurs.**
+Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et envoyer **sans assistance ni clic quotidien** les actions directes éventuellement exposées par les notifications des partenaires. L'APK ne déclare plus de service Accessibilité et le bouton « Tout valider » a été remplacé par un mode automatique à activer une fois. **Il n'existe toujours pas de mécanisme autorisé et vérifié garantissant le crédit de tous les fournisseurs.**
 
 ## Fonctionnalités
 - **22:00 heure locale** : `AlarmManager` lance un `BroadcastReceiver`, qui confie la lecture à **WorkManager** (`androidx.work:work-runtime:2.12.0`). L'écran ne s'ouvre pas.
@@ -25,8 +25,9 @@ Aucun endpoint public de validation « headless » autorisée n'a été établi 
 1. **GitHub → Actions → Android APK → dernier build réussi → `validate-steps-debug`** ; extraire le ZIP et installer `app-debug.apk` (version de test signée automatiquement).
 2. Ouvrir Validate Steps **une seule fois** pour accorder `READ_STEPS` et `READ_HEALTH_DATA_IN_BACKGROUND` à Santé Connect. Sans consentement système, Android ne permet pas de lire les données.
 3. Autoriser les **alarmes exactes** (option système « Alarmes et rappels ») pour viser précisément 22 h ; sinon Android peut retarder l'exécution. Les notifications sont facultatives.
-4. Appuyer sur « Activer la lecture quotidienne à 22 h ». Tester la lecture réelle avec le bouton de diagnostic sans toucher au planning.
-5. Sur HyperOS, régler **Batterie → Applications → Validate Steps → Aucune restriction** et autoriser **Démarrage automatique** si proposé.
+4. Appuyer **une seule fois** sur « ACTIVER LE MODE SANS APPUI », accepter l'explication et autoriser, dans Android, l'accès aux notifications pour la recherche des actions directes. Autoriser également Santé Connect et les alarmes exactes lorsque les quatre indicateurs le demandent. Aucune autorisation Accessibilité n'est requise.
+5. Utiliser les cartes de statut pour vérifier que les permissions sont complètes. Le mode envoie les commandes uniquement si l'éditeur de l'application a publié un bouton de validation Android admissible. Le libellé « action envoyée » ne prouve pas que des crédits ont été accordés.
+6. Sur HyperOS, régler **Batterie → Applications → Validate Steps → Aucune restriction** et autoriser **Démarrage automatique** si proposé. Éviter de forcer l'arrêt de Sweatcoin si vous voulez laisser cette application traiter ses pas.
 
 Après cela, le relevé ne nécessite **aucun écran**, mais Android peut différer/annuler une tâche (téléphone arrêté, application désactivée de force, mode économie d'énergie agressif, absence de permission). Une validation garantie à 22:00:00 est impossible sur tous les téléphones Android.
 
@@ -494,7 +495,7 @@ Dans le tableau de bord, **Rapports précédents → Choisir un jour** ouvre un 
 
 Voir [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) avant toute diffusion comme APK de production.
 
-### Contrat fonctionnel définitif de la v1.0
+### Contrat fonctionnel de la v1.0 (historique, remplacé par la v1.1)
 
 | Fonction | Engagement |
 |---|---|
@@ -508,3 +509,28 @@ Voir [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) avant toute diffusion comme AP
 | Confidentialité | Pas de permission Internet, accès Android demandé explicitement |
 
 Aucun logiciel ne peut promettre une version « définitive » au sens d'impossible à corriger : de futurs changements d'Android, d'HyperOS ou des fournisseurs peuvent nécessiter des mises à jour.
+
+
+## v1.1.0 — Mode nocturne sans assistance
+
+Cette version abandonne l'assistance à un appui **dans l'application installée** : la déclaration `AccessibilityService` est retirée du manifeste Android ; aucune interaction automatique avec les vues, coordonnées, publicités ou boutons d'une application tierce n'est lancée. L'ancien code d'assistance reste uniquement dans l'historique du projet, mais Android ne peut plus l'activer via la version v1.1.
+
+### Ce qui se déroule sans clic quotidien
+
+- **Une seule activation initiale :** le bouton principal active le relevé à 22 h et demande, via les réglages système, l'accès aux notifications si absent. Au retour des paramètres, l'autorisation accordée par l'utilisateur est reconnue sans nouvelle confirmation quotidienne.
+- **22 h :** lecture Santé Connect planifiée par AlarmManager avec secours WorkManager. Cette lecture ne modifie pas directement les comptes partenaires.
+- **22 h à 23 h 40 :** lorsque l'autorisation explicite est présente, le service Android peut envoyer un `PendingIntent` de validation qui provient réellement du fournisseur, possède l'identité/UID attendus, mentionne explicitement les pas, s'exécute sans activité ni saisie et respecte les limitations anti-doublon.
+- **Sans bouton compatible :** aucune fausse opération. Le statut de chaque fournisseur décrit la limite : ouverture d'application exigée, bouton ambigu, origine inconnue, ou absence d'action directe observée.
+- **Sweatcoin :** conversion directement effectuée par Sweatcoin lui-même en arrière-plan, sous les réserves de son fonctionnement Android, indépendamment de Validate Steps.
+
+**Important : WeWard** indique officiellement qu'il faut ouvrir son application et valider manuellement les pas pour lutter contre l'automatisation. **Macadam** impose une validation avant minuit dans son application. Ces règles rendent impossible de promettre leur crédit en arrière-plan avec notre seul accès à Santé Connect, et nous ne tentons pas d'API privées ni de contournement de publicités, de CAPTCHA ou de vérifications.
+
+### Autorisations et protection
+
+- L'autorisation « Accès aux notifications » est **sensible** et doit être donnée explicitement dans Android. Le service peut être autorisé à voir toutes les notifications, mais notre code ignore les contenus des applications hors de la liste blanche et ne stocke aucun texte brut de notification.
+- La v1.1 ne demande **aucun** service Accessibilité. CI rejette la réintroduction involontaire de la déclaration correspondante dans le manifeste Android.
+- Les alarmes, les secours et les actions peuvent être stoppés via « Arrêter l'automatisation ». L'état d'activation antérieur est migré uniquement lorsque la v1.0 avait déjà explicitement activé **à la fois** le relevé et les actions de notifications.
+- Une activation peut être **armée** mais incomplète si Santé Connect, les notifications ou l'alarme exacte ne sont pas autorisés. Les indicateurs le signalent.
+- Les statistiques et bilans locaux restent consultables ; ils ne constituent ni un accès aux soldes des fournisseurs ni une preuve que des récompenses ont été créditées.
+
+La v1.1 ne peut pas certifier le fonctionnement sur Redmi/HyperOS sans essai réel de la programmation et des notifications effectivement émises par WeWard/Macadam/Winwalk. L'APK debug et son empreinte peuvent être récupérés dans GitHub Actions ; une signature privée durable est nécessaire pour distribuer une version stable pouvant être mise à jour sans perte des données.
