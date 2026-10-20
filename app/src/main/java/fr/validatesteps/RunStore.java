@@ -57,8 +57,9 @@ public final class RunStore {
         if (!day.toString().equals(prefs.getString("last_date", "")) ||
             successfulOn(day)) return false;
         return prefs.edit()
-            .putLong("last_steps", steps == null ? -1 : steps)
-            .putString("last_status", status).commit();
+            .putLong("last_steps", StepValuePolicy.storedCount(steps, status))
+            .putString("last_status", StepValuePolicy.storedStatus(steps, status))
+            .commit();
     }
 
     public String describe() {
