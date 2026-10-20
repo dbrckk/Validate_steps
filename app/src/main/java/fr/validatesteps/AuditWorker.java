@@ -64,7 +64,7 @@ public final class AuditWorker extends Worker {
             statusRef.set("unexpected_error");
         }
 
-        String status = statusRef.get();
+        String status = StepValuePolicy.storedStatus(steps.get(), statusRef.get());
         Long count = "steps_read".equals(status) ? steps.get() : null;
         if (!store.finish(day, count, status)) return Result.success();
 
