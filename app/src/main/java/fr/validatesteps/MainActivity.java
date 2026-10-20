@@ -333,10 +333,11 @@ public final class MainActivity extends Activity {
                     refresh();
                 }
             }, true);
-        readinessTile(second, "SANS ASSISTANCE", auto.requested(),
-            auto.requested()
-                ? "Aucun clic ou écran requis chaque jour"
-                : "Activation initiale requise",
+        boolean permissionsReady = health && exact && listening && scheduled;
+        readinessTile(second, "SANS ASSISTANCE", auto.requested() && permissionsReady,
+            !auto.requested() ? "Activation initiale requise" :
+                permissionsReady ? "Mode autonome prêt · commandes selon disponibilité" :
+                "Mode armé · compléter les autorisations",
             () -> {
                 if (!auto.requested()) enableUnattendedPrompt();
                 else toast("Mode autonome : aucune permission Accessibilité nécessaire");
