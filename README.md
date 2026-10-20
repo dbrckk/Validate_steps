@@ -1,4 +1,4 @@
-# Validate Steps (v0.16) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.17) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -344,3 +344,23 @@ Cette version détecte le retour des autorisations `READ_STEPS` et `READ_HEALTH_
 - Tests unitaires pour les autorisations absentes, le service désactivé, la fenêtre expirée, l'état déjà récupéré, et les erreurs n'étant pas des refus de permission.
 
 Les travaux Android restent soumis à la planification système et peuvent être retardés par HyperOS ; aucun accès ni crédit n'est fabriqué.
+
+
+## v0.17 — Compteur fiable après minuit et interface sans états trompeurs
+
+Un problème de fraîcheur pouvait faire apparaître des pas de la veille sous l'en-tête de la nouvelle journée : les lectures de Santé Connect sont asynchrones, les permissions peuvent être retirées et plusieurs actualisations peuvent se terminer dans un ordre différent de leur démarrage.
+
+La version 0.17 applique des règles strictes de **fraîcheur d'affichage**, sans modifier ni fabriquer les données de Santé Connect :
+
+- Un résultat n'est affiché que s'il correspond **au jour local courant**, indique `steps_read` et contient un nombre de pas valide (zéro accepté).
+- Une réponse tardive d'une ancienne requête ne peut pas écraser celle d'une actualisation plus récente. Une réponse d'hier arrivant après minuit est ignorée.
+- Si Santé Connect devient indisponible, ou si une lecture échoue, le compteur et l'anneau reviennent à **« — »**, et non à un ancien total éventuellement erroné.
+- À **minuit local**, lorsque l'écran est ouvert, la date, les indicateurs et les pas sont actualisés sans scrutation permanente. La planification visuelle est arrêtée lorsque l'interface passe à l'arrière-plan.
+- Les anciennes animations de l'anneau sont annulées lors d'un nouveau résultat ; le mode logiciel forcé est supprimé pour permettre le rendu Android normal.
+- L'état positif Santé Connect est maintenant libellé **« Accès aux pas autorisé »** (ancien libellé erroné corrigé).
+- Les quatre tuiles d'autorisations peuvent s'agrandir avec les réglages de police Android. Les diagnostics des notifications ne déclarent plus qu'aucune action n'existe lorsque cette information n'est pas connue.
+- Le bandeau nocturne décrit précisément le **relevé des pas**, avec avertissement si l'accès nécessaire manque. Il n'annonce pas de crédit partenaire automatique.
+
+La règle de fraîcheur fait l'objet de tests unitaires (jour courant, changement de date, lecture échouée, valeur manquante, réponse de requête dépassée). Elle n'interfère pas avec l'alarme de 22 h ni avec le parcours volontaire « Tout valider ».
+
+**Important :** l'interface ne lit pas les soldes serveurs des quatre fournisseurs. Une lecture de pas fiable et une commande Android envoyée restent distinctes d'une récompense réellement validée.

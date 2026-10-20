@@ -16,25 +16,45 @@ public final class StepRingView extends View {
     private final RectF bounds = new RectF();
     private long steps = -1L;
     private float displayed;
+    private ValueAnimator currentAnimation;
     private static final float GOAL = 10000f;
 
     public StepRingView(Context context) {
         super(context);
-        setLayerType(View.LAYER_TYPE_SOFTWARE, null);
         setContentDescription("Pas du jour inconnus");
     }
 
     public void setSteps(long value) {
+        // Never let a superseded animator overwrite the latest request.
+        if (currentAnimation != null) {
+            currentAnimation.cancel();
+            currentAnimation = null;
+        }
         steps = value;
         float target = value < 0 ? 0f : Math.min(1f, value / GOAL);
-        ValueAnimator animator = ValueAnimator.ofFloat(displayed, target);
-        animator.setDuration(680);
-        animator.addUpdateListener(a -> {
-            displayed = (float) a.getAnimatedValue();
+        if (value < 0) {
+            // Unknown is not zero; clear the visual arc immediately too.
+            displayed = 0f;
             invalidate();
-        });
-        animator.start();
-        setContentDescription(value < 0 ? "Pas non lus" : value + " pas aujourd'hui");
+        } else {
+            currentAnimation = ValueAnimator.ofFloat(displayed, target);
+            currentAnimation.setDuration(540);
+            currentAnimation.addUpdateListener(a -> {
+                displayed = (float) a.getAnimatedValue();
+                invalidate();
+            });
+            currentAnimation.start();
+        }
+        setContentDescription(value < 0
+            ? "Pas du jour non disponibles" : value + " pas aujourd'hui");
+    }
+
+    @Override protected void onDetachedFromWindow() {
+        if (currentAnimation != null) {
+            currentAnimation.cancel();
+            currentAnimation = null;
+        }
+        super.onDetachedFromWindow();
     }
 
     @Override protected void onMeasure(int widthSpec, int heightSpec) {
