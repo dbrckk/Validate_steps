@@ -123,6 +123,13 @@ public final class DailyHistoryStore {
         }
     }
 
+    /** Explicit user-requested archive reset; leaves live permissions and alarms alone. */
+    public boolean clear() {
+        synchronized (LOCK) {
+            return prefs.edit().clear().commit();
+        }
+    }
+
     public List<LocalDate> recentDays() {
         LocalDate today = LocalDate.now();
         synchronized (LOCK) {
