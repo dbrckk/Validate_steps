@@ -38,10 +38,14 @@ public final class Notifier {
             .setContentTitle("Vos pas du " + day)
             .setContentText(summary + " · Récompenses non confirmées.")
             .setStyle(new Notification.BigTextStyle().bigText(summary +
-                ". Aucun crédit WeWard, Macadam ou Winwalk n'a été vérifié."))
+                ". Aucune récompense partenaire n'est vérifiée par Validate Steps. " +
+                "La collecte automatique ne fonctionne que si le fournisseur " +
+                "expose un bouton de pas direct dans une notification. " +
+                "Sinon, une validation dans son application reste nécessaire."))
             .setAutoCancel(true);
         // The action is only offered while today's claims remain possible.
-        // Android will open MainActivity only after a real user tap.
+        // Only a real tap opens MainActivity for a direct-only attempt;
+        // the notification shortcut NEVER starts Accessibility.
         if (day.equals(LocalDate.now()) && RetryPolicy.canRecover(ZonedDateTime.now())) {
             String nonce = GuidedNotificationToken.create(context, day);
             Intent launch = new Intent(context, MainActivity.class);
@@ -52,7 +56,7 @@ public final class Notifier {
             PendingIntent pending = PendingIntent.getActivity(context, 1300, launch,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             builder.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_media_play, "Tout valider · assisté", pending).build());
+                android.R.drawable.ic_media_play, "Essayer sans assistance", pending).build());
             // Tapping the notification body only opens diagnostics, not a claim.
             PendingIntent viewOnly = PendingIntent.getActivity(context, 1301,
                 new Intent(context, MainActivity.class),
