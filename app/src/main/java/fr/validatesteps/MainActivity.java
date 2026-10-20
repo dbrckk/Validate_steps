@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.View;
@@ -22,6 +24,7 @@ import android.widget.Toast;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZonedDateTime;
+import java.time.Duration;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -35,6 +38,10 @@ public final class MainActivity extends Activity {
     private LinearLayout providersSection;
     private LinearLayout readinessSection;
     private StepRingView progress;
+    private TextView activityDate;
+    private int latestStepRequest;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private final Runnable midnightRefresh = this::handleNewLocalDay;
     private TextView scheduleStatus;
     private TextView stepSource;
     private TextView subtitle;
@@ -165,10 +172,10 @@ public final class MainActivity extends Activity {
 
         String date = LocalDate.now().format(
             DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRANCE));
-        TextView heading = label("VOTRE ACTIVITÉ · " + date.toUpperCase(Locale.FRANCE),
+        activityDate = label("VOTRE ACTIVITÉ · " + date.toUpperCase(Locale.FRANCE),
             12, 0xffc5d9e4, true);
-        heading.setGravity(Gravity.CENTER);
-        card.addView(heading);
+        activityDate.setGravity(Gravity.CENTER);
+        card.addView(activityDate);
 
         progress = new StepRingView(this);
         LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(218), dp(218));
@@ -272,7 +279,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout first = row();
         readinessTile(first, "SANTÉ CONNECT", health,
-            health ? "Pas accessibles" : "Autorisation requise", () -> {
+            health ? "Pas accessibles et lisibles" : "Autorisation requise", () -> {
                 if (!HealthReader.backgroundSupported()) {
                     toast("Lecture en arrière-plan non disponible sur cette version Android");
                 } else {
@@ -348,8 +355,9 @@ public final class MainActivity extends Activity {
         tile.setFocusable(true);
         tile.setContentDescription(name + " : " + detail + ". Toucher pour configurer.");
         tile.setOnClickListener(v -> press.run());
+        tile.setMinimumHeight(dp(98));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-            0, dp(91), 1f);
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         if (left) params.rightMargin = dp(5);
         else params.leftMargin = dp(5);
         parent.addView(tile, params);
