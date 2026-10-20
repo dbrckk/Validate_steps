@@ -16,10 +16,20 @@ public final class ClaimFlowState {
     }
 
     public void start() {
-        prefs.edit().putBoolean("active", true)
+        // Beginning a new run must not present earlier same-day attempts as if
+        // they were part of the new sequence. Explicit user credit reports
+        // live in a separate store and are never reset by this operation.
+        SharedPreferences.Editor editor = prefs.edit()
+            .putBoolean("active", true)
             .putLong("started", System.currentTimeMillis())
             .putInt("index", 0)
-            .putString("summary", "Démarrage du parcours assisté").commit();
+            .putString("summary", "Démarrage du parcours assisté");
+        String day = java.time.LocalDate.now().toString();
+        for (String provider : GuidedClaimPolicy.ORDER) {
+            editor.putString("result_day_" + provider, day);
+            editor.putString("result_" + provider, "En attente de traitement");
+        }
+        editor.commit();
     }
 
     public boolean active() {
