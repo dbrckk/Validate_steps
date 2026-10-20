@@ -93,8 +93,11 @@ public final class DailyHistoryStore {
         synchronized (LOCK) {
             pruneLocked(LocalDate.now());
             String field = key(day, provider, "observation");
-            String strongest = ObservationRank.strongest(
-                prefs.getString(field, ""), code);
+            String previous = prefs.getString(field, "");
+            String strongest = ObservationRank.strongest(previous, code);
+            // Provider apps may publish numerous identical notifications.
+            // Don't write the same code to flash storage more than once.
+            if (strongest.equals(previous)) return true;
             return prefs.edit().putString(field, strongest).commit();
         }
     }
