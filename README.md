@@ -1,4 +1,4 @@
-# Validate Steps (v0.18) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.19) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -407,3 +407,15 @@ Cette matrice lie **chaque concept à son implémentation réelle dans le dépô
 L'assistance Accessibilité n'est jamais destinée à contourner des publicités, CAPTCHA ou protections des fournisseurs. Elle exige une divulgation claire et un consentement explicite, et se limite à un enchaînement déterministe initié par l'utilisateur. Une déclaration d'utilisation de l'API Accessibilité est nécessaire pour une publication sur Google Play. Voir : https://support.google.com/googleplay/android-developer/answer/10964491?hl=fr
 
 **Objectif encore ouvert** : constater des **crédits effectifs** sur les quatre comptes. Une action envoyée, un clic tenté et une lecture des pas ne garantissent pas un crédit. Aucun partenaire n'est contacté, aucune interface privée ni API non documentée n'est employée.
+
+
+## v0.19 — Durcissement de la lecture asynchrone et des notifications
+
+Cette version complète les **15 piliers qualité** de la v0.18 avec deux correctifs transversaux :
+
+1. **Résultat de Santé Connect immuable par tentative.** La lecture asynchrone passe par `AuditReadGate` : un seul résultat est accepté, une fois le délai de 25 secondes écoulé le résultat est figé, et un callback tardif ou dupliqué ne peut plus modifier les valeurs persistées. Un code de succès contenant un nombre de pas négatif ou absent est converti en `invalid_steps_data`. Une interruption ferme aussi la tentative proprement. Les tests couvrent succès, zéro pas, délai expiré, doublon, valeur invalide et exception.
+2. **Inspection bornée des notifications.** `RewardActionListener` filtre désormais explicitement les fournisseurs autorisés avant de traiter une action. Il n'inspecte pas plus de **256 notifications issues de ces fournisseurs par passage**, même si Android en renvoie davantage. Les notifications d'autres applications ne sont pas ouvertes pour classification ; aucun contenu tiers n'est enregistré. La limite dispose de tests dédiés.
+
+Ces corrections ciblent les piliers fiabilité, précision, gestion des erreurs, anti-doublons, performances, batterie, sécurité, confidentialité et tests. Les autres piliers déjà traités en v0.18 sont conservés.
+
+**Limite :** les tests de logique et le build Android ne prouvent pas que les fournisseurs créditent des récompenses. Une action Android envoyée reste un essai, et les déclarations de crédits sont uniquement celles de l'utilisateur après consultation de chaque application.

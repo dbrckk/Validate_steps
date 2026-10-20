@@ -10,9 +10,7 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Durable no-UI reader. Work input is the date of the alarm, not the execution
@@ -46,26 +44,20 @@ public final class AuditWorker extends Worker {
         NightTimeline timeline = new NightTimeline(context);
         timeline.add(NightTimeline.Event.AUDIT_STARTED, day);
 
-        final CountDownLatch completed = new CountDownLatch(1);
-        final AtomicReference<Long> steps = new AtomicReference<>();
-        final AtomicReference<String> statusRef = new AtomicReference<>("read_timeout");
+        AuditReadGate gate = new AuditReadGate();
+        AuditReadGate.Snapshot result;
         try {
-            HealthReader.queryDay(context, day, (value, status) -> {
-                steps.set(value);
-                statusRef.set(status);
-                completed.countDown();
-            });
-            if (!completed.await(25, TimeUnit.SECONDS))
-                statusRef.set("read_timeout");
+            HealthReader.queryDay(context, day, gate::accept);
+            result = gate.await(25, TimeUnit.SECONDS);
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            statusRef.set("interrupted");
+            result = gate.fail("interrupted");
         } catch (RuntimeException unexpected) {
-            statusRef.set("unexpected_error");
+            result = gate.fail("unexpected_error");
         }
 
-        String status = StepValuePolicy.storedStatus(steps.get(), statusRef.get());
-        Long count = "steps_read".equals(status) ? steps.get() : null;
+        String status = result.status;
+        Long count = "steps_read".equals(status) ? result.steps : null;
         if (!store.finish(day, count, status)) return Result.success();
 
         boolean isCurrentDay = day.equals(LocalDate.now());
