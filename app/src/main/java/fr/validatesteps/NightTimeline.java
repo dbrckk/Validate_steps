@@ -35,8 +35,20 @@ public final class NightTimeline {
     }
 
     public void add(Event event, LocalDate auditDate) {
+        appendLine(event, auditDate, "");
+    }
+
+    /** Include only a fixed, allowlisted app identifier; no account data. */
+    public void addProvider(Event event, LocalDate auditDate, String packageName) {
+        String provider = ProviderEventCode.code(packageName);
+        if (provider.isEmpty()) return;
+        appendLine(event, auditDate, provider);
+    }
+
+    private void appendLine(Event event, LocalDate auditDate, String provider) {
         String line = OffsetDateTime.now().toString() + " | " + event.name()
-            + " | " + (auditDate == null ? "-" : auditDate.toString());
+            + " | " + (auditDate == null ? "-" : auditDate.toString())
+            + (provider.isEmpty() ? "" : " | " + provider);
         synchronized (LOCK) {
             String old = prefs.getString(KEY, "");
             prefs.edit().putString(KEY, TimelinePolicy.append(old, line)).commit();
