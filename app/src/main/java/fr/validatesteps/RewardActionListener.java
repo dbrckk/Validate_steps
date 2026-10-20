@@ -164,7 +164,8 @@ public final class RewardActionListener extends NotificationListenerService {
                 pending.isService() || pending.isForegroundService();
             boolean requiresInput = action.getRemoteInputs() != null &&
                 action.getRemoteInputs().length > 0;
-            String label = action.title == null ? "" : action.title.toString();
+            String label = StepLabelNormalizer.reasonableLength(action.title)
+                ? action.title.toString() : "";
             String diagnostic = ClaimActionPolicy.classify(packageName,
                 label, opensActivity, isBackgroundType, requiresInput);
             observed = ObservationRank.strongest(observed, diagnostic);
