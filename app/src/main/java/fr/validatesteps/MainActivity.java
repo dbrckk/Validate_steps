@@ -39,6 +39,7 @@ public final class MainActivity extends Activity {
     private LinearLayout readinessSection;
     private StepRingView progress;
     private TextView activityDate;
+    private LocalDate displayedDay;
     private int latestStepRequest;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final Runnable midnightRefresh = this::handleNewLocalDay;
@@ -170,7 +171,8 @@ public final class MainActivity extends Activity {
         card.setPadding(dp(16), dp(22), dp(16), dp(23));
         card.setBackground(DashboardStyles.gradient(this, 0xff1a3b4b, 0xff17243e, 30));
 
-        String date = LocalDate.now().format(
+        displayedDay = LocalDate.now();
+        String date = displayedDay.format(
             DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRANCE));
         activityDate = label("VOTRE ACTIVITÉ · " + date.toUpperCase(Locale.FRANCE),
             12, 0xffc5d9e4, true);
@@ -279,7 +281,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout first = row();
         readinessTile(first, "SANTÉ CONNECT", health,
-            health ? "Pas accessibles et lisibles" : "Autorisation requise", () -> {
+            health ? "Accès aux pas autorisé" : "Autorisation requise", () -> {
                 if (!HealthReader.backgroundSupported()) {
                     toast("Lecture en arrière-plan non disponible sur cette version Android");
                 } else {
@@ -752,37 +754,85 @@ public final class MainActivity extends Activity {
         Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
 
+    /** Show no step value unless the latest Health Connect read is valid for today. */
     private void fetchSteps(boolean manual) {
+        final int requestId = ++latestStepRequest;
+        final LocalDate requestedDay = LocalDate.now();
         boolean granted = checkSelfPermission(HealthReader.READ_STEPS) ==
             PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) ==
             PackageManager.PERMISSION_GRANTED;
         if (!granted || !HealthReader.backgroundSupported()) {
+            if (progress != null) progress.setSteps(-1L);
+            if (stepSource != null)
+                stepSource.setText("Santé Connect · autorisation indisponible");
             if (manual) toast("Autorise Santé Connect depuis les paramètres");
             return;
         }
-        stepSource.setText("Lecture des pas réels en cours…");
-        HealthReader.queryDay(this, LocalDate.now(), (steps, status) ->
+        if (stepSource != null) stepSource.setText("Lecture des pas réels en cours…");
+        HealthReader.queryDay(this, requestedDay, (steps, status) ->
             runOnUiThread(() -> {
-                if (isFinishing() || progress == null) return;
-                if (steps != null) {
-                    progress.setSteps(steps);
-                    stepSource.setText("Santé Connect · données actualisées");
+                if (isFinishing() || isDestroyed() || progress == null ||
+                        !StepDisplayPolicy.isLatestRequest(requestId, latestStepRequest))
+                    return;
+                boolean usable = StepDisplayPolicy.isCurrentReading(
+                    requestedDay, LocalDate.now(), steps, status);
+                progress.setSteps(usable ? steps : -1L);
+                if (usable) {
+                    stepSource.setText("Santé Connect · pas réels actualisés");
+                } else if (!requestedDay.equals(LocalDate.now())) {
+                    stepSource.setText("Nouveau jour · relevez les pas à nouveau");
                 } else {
                     stepSource.setText("Lecture indisponible · " + status);
                 }
-                if (manual) toast(steps == null ? "Lecture : " + status
-                    : "Pas réels actualisés : " + steps);
+                if (manual) toast(usable ? "Pas réels actualisés : " + steps
+                    : "Lecture indisponible : " + status);
             }));
+    }
+
+    /** UI-only date change: no background polls, one callback at local midnight. */
+    private void updateDisplayedDay() {
+        LocalDate today = LocalDate.now();
+        if (activityDate == null || today.equals(displayedDay)) return;
+        displayedDay = today;
+        String date = today.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.FRANCE));
+        activityDate.setText("VOTRE ACTIVITÉ · " + date.toUpperCase(Locale.FRANCE));
+        if (progress != null) progress.setSteps(-1L);
+        if (stepSource != null) stepSource.setText("Santé Connect · nouvelle journée");
+    }
+
+    private void handleNewLocalDay() {
+        if (isFinishing() || isDestroyed()) return;
+        updateDisplayedDay();
+        refresh();
+        fetchSteps(false);
+        scheduleMidnightRefresh();
+    }
+
+    private void scheduleMidnightRefresh() {
+        uiHandler.removeCallbacks(midnightRefresh);
+        ZonedDateTime now = ZonedDateTime.now();
+        ZonedDateTime tomorrow = now.toLocalDate().plusDays(1).atStartOfDay(now.getZone());
+        long milliseconds = Math.max(1000L,
+            Duration.between(now.toInstant(), tomorrow.toInstant()).toMillis() + 1500L);
+        uiHandler.postDelayed(midnightRefresh, milliseconds);
     }
 
     @Override protected void onResume() {
         super.onResume();
         if (content != null) {
+            updateDisplayedDay();
             maybeRecoverNightlyAfterPermissionGrant();
             refresh();
             fetchSteps(false);
+            scheduleMidnightRefresh();
         }
+    }
+
+    @Override protected void onPause() {
+        ++latestStepRequest; // Ignore pending results from a no-longer-visible Activity.
+        uiHandler.removeCallbacks(midnightRefresh);
+        super.onPause();
     }
 
     @Override public void onRequestPermissionsResult(
