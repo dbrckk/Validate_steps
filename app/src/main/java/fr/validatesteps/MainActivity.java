@@ -45,6 +45,7 @@ public final class MainActivity extends Activity {
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private final Runnable midnightRefresh = this::handleNewLocalDay;
     private TextView scheduleStatus;
+    private TextView noAssistanceStatus;
     private TextView stepSource;
     private TextView subtitle;
     private TextView creditSummary;
@@ -91,8 +92,9 @@ public final class MainActivity extends Activity {
             toast("Ce bouton a expiré. Lance le parcours depuis le tableau de bord.");
             return;
         }
-        // User tapped the notification; consent and system permission are still mandatory.
-        onClaimAll();
+        // A real user tapped the notification. ONLY inspect direct provider
+        // notification actions, never start Accessibility from this shortcut.
+        attemptDirectWithoutAssistance();
     }
 
     private void render() {
@@ -130,8 +132,9 @@ public final class MainActivity extends Activity {
         space(content, 26);
         timeline();
         space(content, 22);
-        TextView foot = label("Aucun crédit n'est déclaré confirmé sans preuve du fournisseur. " +
-            "L'assistance à un appui ouvre les applications et peut nécessiter une validation manuelle.", 12,
+        TextView foot = label("Le mode sans assistance ne lance pas de clics dans les applications. " +
+            "Si un fournisseur n'expose aucune action directe Android, une validation " +
+            "dans son application peut toujours être nécessaire.", 12,
             DashboardStyles.MUTED, false);
         foot.setGravity(Gravity.CENTER_HORIZONTAL);
         content.addView(foot);
@@ -174,7 +177,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v1.0", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v1.1", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -216,14 +219,15 @@ public final class MainActivity extends Activity {
     }
 
     private void actions() {
-        TextView main = label("✓   TOUT VALIDER", 18, 0xff082223, true);
+        TextView main = label("▶   ESSAYER SANS ASSISTANCE", 18, 0xff082223, true);
         main.setGravity(Gravity.CENTER);
         main.setPadding(dp(20), dp(21), dp(20), dp(21));
         main.setBackground(DashboardStyles.gradient(this, 0xff82f8d6,
             DashboardStyles.ACCENT, 20));
         main.setElevation(dp(5));
-        main.setContentDescription("Lancer le parcours à un appui de validation des pas");
-        main.setOnClickListener(v -> onClaimAll());
+        main.setContentDescription(
+            "Chercher les actions directes des notifications sans ouvrir d'applications");
+        main.setOnClickListener(v -> attemptDirectWithoutAssistance());
         content.addView(main, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -239,7 +243,7 @@ public final class MainActivity extends Activity {
         stopParams.topMargin = dp(9);
         content.addView(stopGuideButton, stopParams);
 
-        subtitle = label("Actions directes + parcours assisté · crédits à vérifier",
+        subtitle = label("Sans Accessibilité · actions directes uniquement · crédits à vérifier",
             12, DashboardStyles.MUTED, false);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(dp(6), dp(13), dp(6), dp(5));
@@ -350,16 +354,11 @@ public final class MainActivity extends Activity {
                     toast("Diagnostic des notifications actualisé");
                 }
             }, true);
-        readinessTile(second, "UN APPUI", GuidedClaimService.connected(),
-            GuidedClaimService.connected() ? "Assistance prête" : "Configuration requise",
-            () -> {
-                if (!getPreferences(MODE_PRIVATE)
-                        .getBoolean("assistance_disclosed", false)) {
-                    discloseAccessibility();
-                } else {
-                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                }
-            }, false);
+        boolean autonomous = HandsFreeModePolicy.configured(scheduled,
+            listening, access);
+        readinessTile(second, "SANS ASSISTANCE", autonomous,
+            autonomous ? "Programmé · crédit non garanti" : "À activer",
+            this::enableWithoutAssistance, false);
         LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         secondLp.topMargin = dp(10);
@@ -431,16 +430,14 @@ public final class MainActivity extends Activity {
             dp(93), dp(44)));
         card.addView(row);
 
-        String status;
-        if (ProviderPackages.SWEATCOIN.equals(pkg)) {
-            status = "Conversion propre à Sweatcoin · crédit non vérifié";
-        } else {
-            status = new ClaimFlowState(this).result(pkg);
-            // Distinct signals, with no false credit confirmation.
-            String notification = new ActionBridgeState(this).brief(pkg);
-            if (!"Aucune action observée".equals(notification))
-                status += "\n" + notification;
-        }
+        LocalDate today = LocalDate.now();
+        ActionBridgeState bridge = new ActionBridgeState(this);
+        String status = HandsFreeModePolicy.providerDescription(
+            installed,
+            new ProviderCreditStore(this).userReportedReceivedToday(pkg, today),
+            bridge.actionStatusOn(pkg, today),
+            bridge.observationOn(pkg, today),
+            ProviderPackages.SWEATCOIN.equals(pkg));
         TextView detail = label(status, 12, DashboardStyles.MUTED, false);
         detail.setPadding(0, dp(14), 0, 0);
         detail.setLineSpacing(dp(3), 1f);
@@ -653,11 +650,111 @@ public final class MainActivity extends Activity {
             .show();
     }
 
+    /** Configure unattended actions without requesting Accessibility. */
+    private void enableWithoutAssistance() {
+        if (!RewardActionListener.hasPermission(this)) {
+            new AlertDialog.Builder(this)
+                .setTitle("Autoriser les notifications une seule fois")
+                .setMessage("Android donnera au service accès aux notifications de l'appareil. " +
+                    "Validate Steps filtre localement WeWard, Macadam et Winwalk " +
+                    "et ne sauvegarde ni leurs messages ni vos données de compte. " +
+                    "Ce droit est nécessaire aux rares boutons de validation " +
+                    "directe que les fournisseurs pourraient publier.\n\n" +
+                    "Après l'autorisation dans Android, reviens ici et touche " +
+                    "à nouveau « Activer sans assistance ». Aucun accès Accessibilité " +
+                    "n'est demandé.")
+                .setPositiveButton("Paramètres Android", (d, w) ->
+                    startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
+                .setNegativeButton("Annuler", null)
+                .show();
+            return;
+        }
+        // The user explicitly enabled this mode after granting sensitive
+        // system notification access. Nothing starts an Accessibility session.
+        new RunStore(this).enable(true);
+        new ActionBridgeState(this).enable(true);
+        DailyScheduler.schedule(this);
+        DailyScheduler.scheduleRecovery(this, true);
+        RewardActionListener.ensureConnected(this);
+        // Do not inspect for a new reward action outside the clock window.
+        RewardActionListener.inspectConnectedNow();
+        refresh();
+        if (HealthReader.backgroundSupported() &&
+                (checkSelfPermission(HealthReader.READ_STEPS)
+                    != PackageManager.PERMISSION_GRANTED ||
+                 checkSelfPermission(HealthReader.READ_BACKGROUND)
+                    != PackageManager.PERMISSION_GRANTED)) {
+            new AlertDialog.Builder(this)
+                .setTitle("Mode autonome programmé")
+                .setMessage("Les actions directes des notifications sont activées. " +
+                    "Autorise aussi Santé Connect pour obtenir le relevé des pas à 22 h. " +
+                    "Le mode n'ouvre pas les fournisseurs et ne garantit pas " +
+                    "leurs récompenses.")
+                .setPositiveButton("Autoriser Santé Connect", (d, w) ->
+                    requestPermissions(new String[]{
+                        HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND}, 10))
+                .setNegativeButton("Plus tard", null).show();
+        } else {
+            toast("Mode sans assistance activé : relevé 22 h et actions directes si disponibles");
+        }
+    }
+
+    /** Explicit on-demand direct attempt, without Accessibility or opening apps. */
+    private void attemptDirectWithoutAssistance() {
+        if (ClaimTimingPolicy.risksPartialDayClaim(LocalTime.now())) {
+            new AlertDialog.Builder(this)
+                .setTitle("Tenter une action avant 22 h ?")
+                .setMessage("Certaines validations quotidiennes peuvent être " +
+                    "irréversibles ou ne porter que sur les pas déjà enregistrés. " +
+                    "Tu peux attendre l'automatisation nocturne ou tenter seulement " +
+                    "les actions directes de notifications maintenant. Aucun " +
+                    "parcours Accessibilité ne sera lancé.")
+                .setPositiveButton("Tenter maintenant", (d, w) -> dispatchDirectOnly())
+                .setNeutralButton("Configurer 22 h", (d, w) -> enableWithoutAssistance())
+                .setNegativeButton("Annuler", null).show();
+            return;
+        }
+        dispatchDirectOnly();
+    }
+
+    private void dispatchDirectOnly() {
+        int sent = RewardActionListener.claimDirectNowFromUserTap(this);
+        lastDirectActions = sent;
+        refresh();
+        String message = sent < 0
+            ? "L'accès aux notifications Android ou la connexion du service " +
+                "est indisponible. Configure les notifications pour analyser " +
+                "les boutons directs, sans service Accessibilité."
+            : sent == 0
+                ? "Aucun nouveau bouton direct de validation de pas n'a " +
+                    "été envoyé. Les fournisseurs peuvent exiger l'ouverture " +
+                    "de leur propre application."
+                : sent + " action(s) directe(s) transmise(s) à Android. " +
+                    "Cela ne prouve pas que les récompenses ont été créditées.";
+        new AlertDialog.Builder(this)
+            .setTitle("Résultat · sans assistance")
+            .setMessage(message)
+            .setPositiveButton("Compris", null)
+            .setNeutralButton("Régler les notifications", (d, w) ->
+                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
+            .show();
+    }
+
     private void automation() {
-        title(content, "AUTOMATISATION", "Deux méthodes complémentaires");
+        title(content, "AUTOMATISATION SANS ASSISTANCE",
+            "Configuration unique pour les actions Android disponibles");
         LinearLayout card = column();
         card.setPadding(dp(17), dp(16), dp(17), dp(16));
         card.setBackground(DashboardStyles.round(this, DashboardStyles.SURFACE, 20));
+
+        TextView activate = action("ACTIVER LE MODE 22 H · SANS ASSISTANCE",
+            0xff22584f, DashboardStyles.TEXT, this::enableWithoutAssistance);
+        card.addView(activate, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(58)));
+        noAssistanceStatus = label("", 12, DashboardStyles.MUTED, false);
+        noAssistanceStatus.setPadding(dp(4), dp(12), dp(4), dp(16));
+        noAssistanceStatus.setLineSpacing(dp(3), 1f);
+        card.addView(noAssistanceStatus);
 
         LinearLayout auto = row();
         LinearLayout titles = column();
@@ -729,9 +826,11 @@ public final class MainActivity extends Activity {
         card.addView(notification);
         content.addView(card);
 
-        TextView caution = label("L'automatisation nocturne ne peut pas forcer l'ouverture " +
-            "des applications à écran verrouillé. Elle utilise uniquement les " +
-            "actions de notification réellement disponibles.",
+        TextView caution = label("Sans Accessibilité ni appui quotidien : les " +
+            "actions de notification ne sont exécutées que si le fournisseur " +
+            "les propose réellement. WeWard et Macadam exigent normalement une " +
+            "validation dans leur application ; l'automatisation totale " +
+            "des récompenses n'est pas garantie.",
             12, DashboardStyles.MUTED, false);
         caution.setPadding(dp(8), dp(12), dp(8), 0);
         content.addView(caution);
@@ -764,8 +863,9 @@ public final class MainActivity extends Activity {
         });
         setting("Accès aux notifications", "Boutons directs proposés par les services",
             () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        setting("Assistance à un appui", "Autorisation Android d'interagir avec les boutons visibles",
-            this::discloseAccessibility);
+        setting("Assistance à un appui (facultative)",
+            "Ancien parcours guidé : ne fait pas partie du mode automatique",
+            this::onClaimAll);
         setting("Notifications système", "Recevoir les informations de suivi",
             () -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11));
         setting("Paramètres de l'application", "Batterie, autorisations, restrictions HyperOS",
@@ -1107,6 +1207,12 @@ public final class MainActivity extends Activity {
         if (scheduleSwitch != null) scheduleSwitch.setChecked(run.enabled());
         if (notificationSwitch != null) notificationSwitch.setChecked(action.enabled());
         updating = false;
+        if (noAssistanceStatus != null) {
+            noAssistanceStatus.setText(HandsFreeModePolicy.setupDescription(
+                run.enabled(), action.enabled(),
+                RewardActionListener.hasPermission(this), RewardActionListener.connected()) +
+                "\nCe mode ne nécessite pas Accessibilité et ne garantit aucun crédit.");
+        }
         boolean healthReady = HealthReader.backgroundSupported() &&
             checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
@@ -1143,6 +1249,6 @@ public final class MainActivity extends Activity {
                 ? new ClaimFlowState(this).summary()
                 : lastDirectActions > 0
                     ? lastDirectActions + " action(s) envoyée(s) · crédits non confirmés"
-                    : "Un appui : actions directes, puis parcours assisté si autorisé");
+                    : "Sans Accessibilité : seules les notifications compatibles sont tentées");
     }
 }
