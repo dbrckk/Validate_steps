@@ -898,101 +898,137 @@ public final class MainActivity extends Activity {
         content.addView(panel);
     }
 
-    private void onClaimAll() {
-        if (new ClaimFlowState(this).active()) {
-            toast("Un parcours de validation est déjà en cours");
-            return;
-        }
-        // An early claim can lock today's tally before all steps are earned.
-        // Require an explicit choice rather than silently spending the claim.
-        if (ClaimTimingPolicy.risksPartialDayClaim(LocalTime.now())) {
+    /** Explicit autonomous opt-in; no Accessibility service is needed. */
+    private void configureAutonomousMode() {
+        boolean ready = AutonomousModePolicy.autonomousReady(
+            new RunStore(this).enabled(), new ActionBridgeState(this).enabled(),
+            RewardActionListener.hasPermission(this),
+            HealthReader.backgroundSupported() &&
+                checkSelfPermission(HealthReader.READ_STEPS) ==
+                    PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(HealthReader.READ_BACKGROUND) ==
+                    PackageManager.PERMISSION_GRANTED);
+        if (ready) {
             new AlertDialog.Builder(this)
-                .setTitle("Valider les pas avant 22 h ?")
-                .setMessage("Certaines applications ne permettent qu'une validation " +
-                    "par jour. Une validation maintenant pourrait ne pas " +
-                    "inclure les pas que tu feras plus tard.\n\n" +
-                    "Tu peux continuer immédiatement ou programmer le relevé " +
-                    "de 22 h (les crédits des partenaires restent non garantis).")
-                .setPositiveButton("Valider maintenant", (d, w) -> executeClaimAll())
-                .setNeutralButton("Programmer 22 h", (d, w) -> {
-                    new RunStore(this).enable(true);
-                    DailyScheduler.schedule(this);
-                    DailyScheduler.scheduleRecovery(this, true);
+                .setTitle("Mode autonome configuré")
+                .setMessage("Le relevé à 22 h est activé avec la recherche des actions " +
+                    "directes éventuellement publiées par WeWard, Macadam et Winwalk. " +
+                    "Aucun accès Accessibilité n'est nécessaire.\n\n" +
+                    "Cela ne permet pas de forcer leur validation interne ni de " +
+                    "confirmer le crédit des récompenses. Sweatcoin convertit " +
+                    "ses pas avec son propre système.")
+                .setPositiveButton("Compris", null)
+                .setNeutralButton("Diagnostiquer", (d, w) -> {
+                    RewardActionListener.diagnoseConnectedNow(this);
                     refresh();
-                    toast("Relevé programmé à 22 h · active aussi les actions de notifications");
                 })
-                .setNegativeButton("Annuler", null)
                 .show();
-            return;
-        }
-        executeClaimAll();
-    }
-
-    private void executeClaimAll() {
-        if (new ClaimFlowState(this).active()) {
-            toast("Un parcours de validation est déjà en cours");
-            return;
-        }
-        // First, attempt provider-created background notification actions.
-        // A direct action needs a real user gesture here, not a 22:00 alarm,
-        // and stays subject to the same exact step-label and origin checks.
-        int direct = RewardActionListener.claimDirectNowFromUserTap(this);
-        lastDirectActions = direct;
-        refresh();
-
-        // With optional Accessibility consent, guide the remaining providers.
-        // The guided service skips any direct action just sent today.
-        boolean consent = getPreferences(MODE_PRIVATE)
-            .getBoolean("assistance_disclosed", false);
-        if (consent && GuidedClaimService.connected()) {
-            if (GuidedClaimService.begin(this)) {
-                toast(direct > 0
-                    ? direct + " action(s) directe(s) envoyée(s), parcours complémentaire lancé"
-                    : "Parcours assisté lancé · boutons des pas uniquement");
-            } else {
-                toast("Impossible de démarrer le parcours assisté");
-            }
-            return;
-        }
-
-        if (direct > 0) {
-            new AlertDialog.Builder(this)
-                .setTitle("Actions de pas envoyées")
-                .setMessage(direct + " commande(s) directe(s) transmise(s) aux " +
-                    "applications via leurs notifications. Cela ne confirme pas " +
-                    "le crédit des récompenses. Pour les autres services, " +
-                    "l'assistance facultative peut ouvrir les applications " +
-                    "et tenter leurs boutons visibles.")
-                .setPositiveButton("Configurer l'assistance", (d, w) -> {
-                    if (consent) startActivity(new Intent(
-                        Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                    else discloseAccessibility();
-                })
-                .setNegativeButton("Terminer", null)
-                .show();
-            return;
-        }
-
-        if (!consent) {
-            discloseAccessibility();
             return;
         }
 
         new AlertDialog.Builder(this)
-            .setTitle("Parcours assisté indisponible")
-            .setMessage(direct < 0
-                ? "Le service de notifications n'est pas disponible, et " +
-                    "l'assistance Accessibilité est désactivée. Configure " +
-                    "l'accès Android pour utiliser le bouton Tout valider."
-                : "Aucun bouton de pas direct n'a été trouvé dans les " +
-                    "notifications. Active l'assistance facultative pour " +
-                    "rechercher les boutons dans les applications.")
-            .setPositiveButton("Régler Accessibilité", (d, w) ->
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)))
-            .setNeutralButton("Accès aux notifications", (d, w) ->
-                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
+            .setTitle("Activer le mode autonome à 22 h")
+            .setMessage("Validate Steps lira les pas réels via Santé Connect et " +
+                "recherchera, entre 22 h et 23 h 40, des boutons directs de " +
+                "validation publiés dans les notifications des applications " +
+                "autorisées.\n\n" +
+                "Android donne au service d'accès aux notifications une " +
+                "permission sensible : notre code examine uniquement les " +
+                "notifications des trois applications concernées, sans " +
+                "enregistrer leurs messages.\n\n" +
+                "Aucune intervention Accessibilité ni ouverture automatique " +
+                "des applications n'est nécessaire. Cela ne garantit pas " +
+                "l'obtention des pièces : les fournisseurs peuvent ne pas " +
+                "proposer de commande directe.")
+            .setPositiveButton("Activer", (d, w) -> {
+                new RunStore(this).enable(true);
+                new ActionBridgeState(this).enable(true);
+                DailyScheduler.schedule(this);
+                DailyScheduler.scheduleRecovery(this, true);
+                if (!RewardActionListener.hasPermission(this)) {
+                    toast("Accorde l'accès aux notifications à Validate Steps");
+                    startActivity(new Intent(
+                        Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+                } else {
+                    RewardActionListener.ensureConnected(this);
+                    RewardActionListener.diagnoseConnectedNow(this);
+                    if (HealthReader.backgroundSupported() &&
+                            (checkSelfPermission(HealthReader.READ_STEPS) !=
+                                PackageManager.PERMISSION_GRANTED ||
+                            checkSelfPermission(HealthReader.READ_BACKGROUND) !=
+                                PackageManager.PERMISSION_GRANTED)) {
+                        requestPermissions(new String[]{
+                            HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND}, 10);
+                    } else if (!DailyScheduler.exactAllowed(this)) {
+                        toast("Autorise les alarmes exactes pour viser 22 h");
+                    }
+                }
+                refresh();
+            })
             .setNegativeButton("Annuler", null)
             .show();
+    }
+
+    /**
+     * Manual diagnostic/dispatch of official notification actions ONLY.
+     * No Accessibility, no opening other apps and no forced provider credit.
+     */
+    private void onClaimAll() {
+        if (ClaimTimingPolicy.risksPartialDayClaim(LocalTime.now())) {
+            new AlertDialog.Builder(this)
+                .setTitle("Envoyer une commande avant 22 h ?")
+                .setMessage("Si un fournisseur publie une commande directe, " +
+                    "elle pourrait valider seulement les pas déjà accumulés. " +
+                    "Tu peux tester maintenant, ou laisser l'automatisation " +
+                    "attendre 22 h. Aucune récompense n'est garantie.")
+                .setPositiveButton("Essayer maintenant", (d, w) -> executeDirectOnly())
+                .setNeutralButton("Configurer 22 h", (d, w) -> configureAutonomousMode())
+                .setNegativeButton("Annuler", null)
+                .show();
+            return;
+        }
+        executeDirectOnly();
+    }
+
+    private void executeDirectOnly() {
+        int sent = RewardActionListener.claimDirectNowFromUserTap(this);
+        lastDirectActions = sent;
+        refresh();
+        String message = sent > 0
+            ? sent + " commande(s) Android envoyée(s) depuis des notifications " +
+                "des fournisseurs. Le crédit reste à vérifier dans leurs applications."
+            : sent == 0
+                ? "Aucune nouvelle commande directe de validation des pas " +
+                    "n'a été envoyée. Les fournisseurs peuvent ne proposer " +
+                    "qu'une validation dans leur propre interface, ou une " +
+                    "tentative a peut-être déjà été faite aujourd'hui."
+                : "Le service Android de notifications n'est pas connecté " +
+                    "ou son autorisation est absente. Aucun essai n'a été envoyé.";
+        new AlertDialog.Builder(this)
+            .setTitle("Résultat sans assistance")
+            .setMessage(message)
+            .setPositiveButton("Fermer", null)
+            .setNeutralButton("Configurer le mode autonome",
+                (d, w) -> configureAutonomousMode())
+            .show();
+    }
+
+    /** Separate option, deliberately never entered by the autonomous path. */
+    private void startOptionalGuided() {
+        if (!getPreferences(MODE_PRIVATE).getBoolean("assistance_disclosed", false)) {
+            discloseAccessibility();
+            return;
+        }
+        if (!GuidedClaimService.connected()) {
+            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+            return;
+        }
+        if (GuidedClaimService.begin(this)) {
+            toast("Parcours facultatif démarré : écran nécessaire");
+            refresh();
+        } else {
+            toast("Parcours facultatif déjà actif ou indisponible");
+        }
     }
 
     private void discloseAccessibility() {
