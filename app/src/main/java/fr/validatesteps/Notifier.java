@@ -9,7 +9,6 @@ import android.content.Intent;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import java.time.LocalDate;
-import java.time.ZonedDateTime;
 
 /** Notifies of a real step read for the intended day; never asserts rewards. */
 public final class Notifier {
@@ -40,25 +39,12 @@ public final class Notifier {
             .setStyle(new Notification.BigTextStyle().bigText(summary +
                 ". Aucun crédit WeWard, Macadam ou Winwalk n'a été vérifié."))
             .setAutoCancel(true);
-        // The action is only offered while today's claims remain possible.
-        // Android will open MainActivity only after a real user tap.
-        if (day.equals(LocalDate.now()) && RetryPolicy.canRecover(ZonedDateTime.now())) {
-            String nonce = GuidedNotificationToken.create(context, day);
-            Intent launch = new Intent(context, MainActivity.class);
-            launch.setAction("fr.validatesteps.NOTIFICATION_USER_CLICK");
-            launch.putExtra(GuidedNotificationToken.EXTRA, nonce);
-            launch.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP |
-                Intent.FLAG_ACTIVITY_SINGLE_TOP);
-            PendingIntent pending = PendingIntent.getActivity(context, 1300, launch,
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            builder.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_media_play, "Tout valider · assisté", pending).build());
-            // Tapping the notification body only opens diagnostics, not a claim.
-            PendingIntent viewOnly = PendingIntent.getActivity(context, 1301,
-                new Intent(context, MainActivity.class),
-                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-            builder.setContentIntent(viewOnly);
-        }
+        // Informational notification only. Never prompt a daily manual
+        // "Tout valider" action: the opt-in mode operates without assistance.
+        PendingIntent viewOnly = PendingIntent.getActivity(context, 1301,
+            new Intent(context, MainActivity.class),
+            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        builder.setContentIntent(viewOnly);
         Notification notification = builder.build();
         try {
             manager.notify(2200, notification);
