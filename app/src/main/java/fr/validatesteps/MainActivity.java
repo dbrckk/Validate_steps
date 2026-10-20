@@ -158,7 +158,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.16", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.17", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -239,8 +239,9 @@ public final class MainActivity extends Activity {
             DashboardStyles.TEXT, () -> {
                 boolean connected = RewardActionListener.diagnoseConnectedNow(this);
                 refresh();
-                toast(connected ? "Notifications inspectées sans aucune action" :
-                    "Service de notifications déconnecté : voir les autorisations");
+                toast(connected
+                    ? "Diagnostic terminé · consulte les états des applications"
+                    : "Service de notifications déconnecté : voir les autorisations");
             });
         LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, dp(53), 1f);
         second.leftMargin = dp(7);
@@ -878,11 +879,16 @@ public final class MainActivity extends Activity {
         if (scheduleSwitch != null) scheduleSwitch.setChecked(run.enabled());
         if (notificationSwitch != null) notificationSwitch.setChecked(action.enabled());
         updating = false;
-        if (scheduleStatus != null) scheduleStatus.setText(run.enabled()
-            ? (DailyScheduler.exactAllowed(this)
-                ? "●  AUTOMATIQUE À 22:00 · ACTIVE"
-                : "◌  ACTIVE · ALARME APPROXIMATIVE")
-            : "○  AUTOMATISATION À 22 H DÉSACTIVÉE");
+        boolean healthReady = HealthReader.backgroundSupported() &&
+            checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
+        if (scheduleStatus != null) scheduleStatus.setText(!run.enabled()
+            ? "○  RELEVÉ À 22 H DÉSACTIVÉ"
+            : !healthReady
+                ? "◌  RELEVÉ 22 H · ACCÈS AUX PAS MANQUANT"
+                : DailyScheduler.exactAllowed(this)
+                    ? "●  RELEVÉ DES PAS À 22 H · PROGRAMMÉ"
+                    : "◌  RELEVÉ DES PAS · HORAIRE APPROXIMATIF");
         rebuildReadiness();
         rebuildProviders();
         if (timelineText != null) timelineText.setText(
