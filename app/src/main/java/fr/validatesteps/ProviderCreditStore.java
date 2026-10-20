@@ -74,7 +74,9 @@ public final class ProviderCreditStore {
             .remove("date_" + packageName)
             .remove("status_" + packageName)
             .remove("time_" + packageName).commit();
-        if (committed && day != null)
+        // This UI operation clears only the current statement. Never rewrite
+        // a historical declaration while clearing an outdated live preference.
+        if (committed && java.time.LocalDate.now().equals(day))
             new DailyHistoryStore(appContext).recordCredit(
                 packageName, day, CreditEvidencePolicy.UNKNOWN);
         return committed;
