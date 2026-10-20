@@ -23,6 +23,9 @@ public final class GuidedClaimService extends AccessibilityService {
     private static volatile GuidedClaimService current;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private boolean waitingForNext;
+    // In-memory only: a process restart must NEVER resurrect a user-initiated
+    // Accessibility workflow from the persisted state of an earlier session.
+    private boolean sessionArmed;
     private long previousScanMs;
 
     public static boolean connected() { return current != null; }
@@ -31,6 +34,8 @@ public final class GuidedClaimService extends AccessibilityService {
         GuidedClaimService instance = current;
         if (instance == null || new ClaimFlowState(context).active()) return false;
         instance.handler.removeCallbacksAndMessages(null);
+        instance.waitingForNext = false;
+        instance.sessionArmed = true;
         new ClaimFlowState(context).start();
         new NightTimeline(context).add(NightTimeline.Event.GUIDED_STARTED,
             java.time.LocalDate.now());
@@ -49,6 +54,7 @@ public final class GuidedClaimService extends AccessibilityService {
         state.stop();
         GuidedClaimService instance = current;
         if (instance != null) {
+            instance.sessionArmed = false;
             instance.waitingForNext = true;
             instance.handler.removeCallbacksAndMessages(null);
         }
@@ -56,10 +62,17 @@ public final class GuidedClaimService extends AccessibilityService {
 
     @Override protected void onServiceConnected() {
         super.onServiceConnected();
+        // An older SharedPreferences session does not prove a *current*
+        // user gesture after Android reconnects or restarts this service.
+        handler.removeCallbacksAndMessages(null);
+        waitingForNext = false;
+        sessionArmed = false;
+        new ClaimFlowState(this).stop();
         current = this;
     }
 
     @Override public void onDestroy() {
+        sessionArmed = false;
         if (current == this) current = null;
         handler.removeCallbacksAndMessages(null);
         new ClaimFlowState(this).stop();
@@ -67,11 +80,13 @@ public final class GuidedClaimService extends AccessibilityService {
     }
 
     @Override public void onInterrupt() {
+        sessionArmed = false;
         new ClaimFlowState(this).stop();
         handler.removeCallbacksAndMessages(null);
     }
 
     @Override public boolean onUnbind(Intent intent) {
+        sessionArmed = false;
         if (current == this) current = null;
         handler.removeCallbacksAndMessages(null);
         new ClaimFlowState(this).stop();
@@ -81,7 +96,7 @@ public final class GuidedClaimService extends AccessibilityService {
     @Override public void onAccessibilityEvent(AccessibilityEvent event) {
         ClaimFlowState state = new ClaimFlowState(this);
         String target = state.target();
-        if (target == null || waitingForNext || event == null ||
+        if (!sessionArmed || target == null || waitingForNext || event == null ||
                 event.getPackageName() == null ||
                 !target.contentEquals(event.getPackageName())) return;
         if (ProviderPackages.SWEATCOIN.equals(target)) return;
@@ -148,7 +163,7 @@ public final class GuidedClaimService extends AccessibilityService {
 
     private void launchNext() {
         ClaimFlowState state = new ClaimFlowState(this);
-        if (!state.active()) {
+        if (!sessionArmed || !state.active()) {
             endOnDashboard();
             return;
         }
@@ -157,6 +172,14 @@ public final class GuidedClaimService extends AccessibilityService {
         if (target == null) {
             state.stop();
             endOnDashboard();
+            return;
+        }
+        if (new ProviderCreditStore(this).userReportedReceivedToday(
+                target, java.time.LocalDate.now())) {
+            // A user already checked the actual provider account and said
+            // the rewards were received: do not click them again today.
+            state.report(target, "Déjà déclaré reçu par vous · aucun nouveau clic");
+            finishCurrent(target);
             return;
         }
         if (new ActionBridgeState(this).dispatchedToday(
@@ -205,11 +228,12 @@ public final class GuidedClaimService extends AccessibilityService {
 
     private void finishCurrent(String expectedTarget) {
         ClaimFlowState state = new ClaimFlowState(this);
-        if (!expectedTarget.equals(state.target())) return;
+        if (!sessionArmed || !expectedTarget.equals(state.target())) return;
         waitingForNext = true;
         boolean more = state.advance(expectedTarget);
         if (more) handler.postDelayed(this::launchNext, 650L);
         else {
+            sessionArmed = false;
             state.stop();
             new NightTimeline(this).add(NightTimeline.Event.GUIDED_FINISHED,
                 java.time.LocalDate.now());
