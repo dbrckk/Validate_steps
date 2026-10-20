@@ -19,11 +19,9 @@ import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ImageView;
 import android.widget.ScrollView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.ZonedDateTime;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
@@ -49,14 +47,11 @@ public final class MainActivity extends Activity {
     private TextView subtitle;
     private TextView creditSummary;
     private TextView dailyReportText;
-    private TextView stopGuideButton;
+    private TextView stopAutomationButton;
+    private TextView autoModeButton;
     private TextView timelineText;
     private TextView historicalSummaryText;
     private LocalDate selectedHistoryDate;
-    private Switch scheduleSwitch;
-    private Switch notificationSwitch;
-    private boolean updating;
-    private int lastDirectActions = -1;
 
     private int dp(float value) { return DashboardStyles.dp(this, value); }
 
@@ -66,33 +61,11 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(DashboardStyles.BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
         render();
-        handleNotificationIntent(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleNotificationIntent(intent);
-    }
-
-    private void handleNotificationIntent(Intent intent) {
-        if (intent == null) return;
-        String token;
-        try {
-            if (!intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
-            token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
-            // Remove extras from this exported Activity's Intent to block replay.
-            intent.removeExtra(GuidedNotificationToken.EXTRA);
-        } catch (RuntimeException malformedExternalIntent) {
-            // Never crash on malicious/malformed Parcelable extras from another app.
-            return;
-        }
-        if (!GuidedNotificationToken.consume(this, token)) {
-            toast("Ce bouton a expiré. Lance le parcours depuis le tableau de bord.");
-            return;
-        }
-        // User tapped the notification; consent and system permission are still mandatory.
-        onClaimAll();
     }
 
     private void render() {
@@ -130,8 +103,9 @@ public final class MainActivity extends Activity {
         space(content, 26);
         timeline();
         space(content, 22);
-        TextView foot = label("Aucun crédit n'est déclaré confirmé sans preuve du fournisseur. " +
-            "L'assistance à un appui ouvre les applications et peut nécessiter une validation manuelle.", 12,
+        TextView foot = label("Sans Accessibilité ni clic quotidien : les commandes sont " +
+            "envoyées uniquement si les fournisseurs exposent une action Android admissible. " +
+            "Aucune récompense tierce n'est déclarée automatiquement créditée.", 12,
             DashboardStyles.MUTED, false);
         foot.setGravity(Gravity.CENTER_HORIZONTAL);
         content.addView(foot);
@@ -174,7 +148,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v1.0", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v1.1", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -216,30 +190,37 @@ public final class MainActivity extends Activity {
     }
 
     private void actions() {
-        TextView main = label("✓   TOUT VALIDER", 18, 0xff082223, true);
-        main.setGravity(Gravity.CENTER);
-        main.setPadding(dp(20), dp(21), dp(20), dp(21));
-        main.setBackground(DashboardStyles.gradient(this, 0xff82f8d6,
-            DashboardStyles.ACCENT, 20));
-        main.setElevation(dp(5));
-        main.setContentDescription("Lancer le parcours à un appui de validation des pas");
-        main.setOnClickListener(v -> onClaimAll());
-        content.addView(main, new LinearLayout.LayoutParams(
+        autoModeButton = label("●   ACTIVER LE MODE SANS APPUI", 18, 0xff082223, true);
+        autoModeButton.setGravity(Gravity.CENTER);
+        autoModeButton.setPadding(dp(20), dp(21), dp(20), dp(21));
+        autoModeButton.setBackground(DashboardStyles.gradient(this,
+            0xff82f8d6, DashboardStyles.ACCENT, 20));
+        autoModeButton.setElevation(dp(5));
+        autoModeButton.setContentDescription(
+            "Configurer l'automatisation quotidienne des pas à 22 heures, sans Accessibilité");
+        autoModeButton.setOnClickListener(v -> enableUnattendedPrompt());
+        content.addView(autoModeButton, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        stopGuideButton = action("■  Arrêter le parcours en cours",
+        stopAutomationButton = action("■  Arrêter l'automatisation",
             0xff3a2736, DashboardStyles.TEXT, () -> {
-                GuidedClaimService.cancel(this);
-                toast("Parcours assisté arrêté");
-                refresh();
+                new AlertDialog.Builder(this)
+                    .setTitle("Désactiver le mode sans appui ?")
+                    .setMessage("Les alarmes et les actions de notification seront " +
+                        "désactivées. Les bilans locaux resteront disponibles.")
+                    .setPositiveButton("Désactiver", (dialog, choice) -> {
+                        new UnattendedModeController(this).disable();
+                        refresh();
+                        toast("Mode sans appui désactivé");
+                    })
+                    .setNegativeButton("Annuler", null).show();
             });
-        stopGuideButton.setVisibility(View.GONE);
         LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
         stopParams.topMargin = dp(9);
-        content.addView(stopGuideButton, stopParams);
+        content.addView(stopAutomationButton, stopParams);
 
-        subtitle = label("Actions directes + parcours assisté · crédits à vérifier",
+        subtitle = label("Une activation initiale, puis relevé à 22 h sans interaction",
             12, DashboardStyles.MUTED, false);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(dp(6), dp(13), dp(6), dp(5));
@@ -267,8 +248,8 @@ public final class MainActivity extends Activity {
                 boolean connected = RewardActionListener.diagnoseConnectedNow(this);
                 refresh();
                 toast(connected
-                    ? "Diagnostic terminé · consulte les états des applications"
-                    : "Service de notifications déconnecté : voir les autorisations");
+                    ? "Diagnostic terminé · états par application actualisés"
+                    : "Service de notifications déconnecté : autorisation Android requise");
             });
         LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, dp(53), 1f);
         second.leftMargin = dp(7);
