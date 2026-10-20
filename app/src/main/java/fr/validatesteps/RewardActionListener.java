@@ -192,13 +192,13 @@ public final class RewardActionListener extends NotificationListenerService {
                 pending.send();
                 sent = true;
                 store.record(packageName, "action_envoyee_credit_non_confirme");
-                new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_DISPATCHED, day);
+                new NightTimeline(this).addProvider(NightTimeline.Event.CLAIM_ACTION_DISPATCHED, day, packageName);
             } catch (PendingIntent.CanceledException cancelled) {
                 store.record(packageName, "action_annulee");
-                new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_CANCELED, day);
+                new NightTimeline(this).addProvider(NightTimeline.Event.CLAIM_ACTION_CANCELED, day, packageName);
             } catch (RuntimeException error) {
                 store.record(packageName, "erreur_declenchement");
-                new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_ERROR, day);
+                new NightTimeline(this).addProvider(NightTimeline.Event.CLAIM_ACTION_ERROR, day, packageName);
             }
             return sent;
         }
