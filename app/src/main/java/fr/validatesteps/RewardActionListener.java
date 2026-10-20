@@ -20,6 +20,9 @@ import java.time.ZonedDateTime;
 public final class RewardActionListener extends NotificationListenerService {
     private static volatile RewardActionListener active;
 
+    /** Whether the framework service is currently bound (not merely permitted). */
+    public static boolean connected() { return active != null; }
+
     public static boolean hasPermission(Context context) {
         NotificationManager manager = context.getSystemService(NotificationManager.class);
         return manager != null && manager.isNotificationListenerAccessGranted(
