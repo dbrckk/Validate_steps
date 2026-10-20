@@ -732,7 +732,55 @@ public final class MainActivity extends Activity {
         });
         notification.addView(notificationSwitch);
         card.addView(notification);
+        space(card, 14);
+
+        View reminderSeparator = new View(this);
+        reminderSeparator.setBackgroundColor(0xff324155);
+        card.addView(reminderSeparator, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+        space(card, 14);
+
+        LinearLayout reminderLine = row();
+        LinearLayout reminderText = column();
+        reminderText.addView(label("Alerte du soir facultative",
+            15, DashboardStyles.TEXT, true));
+        reminderText.addView(label("Vers 23 h 15 : signale les crédits non vérifiés",
+            12, DashboardStyles.MUTED, false));
+        reminderLine.addView(reminderText, new LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        reviewSwitch = new Switch(this);
+        reviewSwitch.setThumbTintList(android.content.res.ColorStateList.valueOf(
+            DashboardStyles.ACCENT));
+        reviewSwitch.setContentDescription(
+            "Rappeler facultativement les récompenses non vérifiées après 23 heures 15");
+        reviewSwitch.setOnCheckedChangeListener((button, checked) -> {
+            if (updating) return;
+            if (checked && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                updating = true;
+                reviewSwitch.setChecked(false);
+                updating = false;
+                requestPermissions(new String[]{
+                    Manifest.permission.POST_NOTIFICATIONS}, 12);
+                toast("Autorise les notifications puis active à nouveau le rappel facultatif");
+                return;
+            }
+            AutonomousReviewReminder.enable(this, checked);
+            refresh();
+        });
+        reminderLine.addView(reviewSwitch);
+        card.addView(reminderLine);
         content.addView(card);
+
+        autonomousSummary = label("", 12, DashboardStyles.MUTED, false);
+        autonomousSummary.setPadding(dp(12), dp(13), dp(12), dp(13));
+        autonomousSummary.setLineSpacing(dp(3), 1f);
+        autonomousSummary.setBackground(DashboardStyles.stroke(this,
+            DashboardStyles.SURFACE, 0xff273a51, 16, 1));
+        LinearLayout.LayoutParams summaryParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        summaryParams.topMargin = dp(12);
+        content.addView(autonomousSummary);
 
         TextView caution = label("L'automatisation nocturne ne peut pas forcer l'ouverture " +
             "des applications à écran verrouillé. Elle utilise uniquement les " +
