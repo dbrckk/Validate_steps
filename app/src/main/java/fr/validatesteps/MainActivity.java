@@ -1141,6 +1141,9 @@ public final class MainActivity extends Activity {
         super.onResume();
         if (content != null) {
             updateDisplayedDay();
+            // Returning from Android notification settings completes the opt-in
+            // without requiring an extra launch of an Accessibility workflow.
+            RewardActionListener.ensureConnected(this);
             maybeRecoverNightlyAfterPermissionGrant();
             refresh();
             fetchSteps(false);
