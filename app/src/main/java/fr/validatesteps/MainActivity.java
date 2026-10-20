@@ -71,10 +71,17 @@ public final class MainActivity extends Activity {
     }
 
     private void handleNotificationIntent(Intent intent) {
-        if (intent == null || !intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
-        String token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
-        // Remove extras even from this Activity's in-memory Intent to block replay.
-        intent.removeExtra(GuidedNotificationToken.EXTRA);
+        if (intent == null) return;
+        String token;
+        try {
+            if (!intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
+            token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
+            // Remove extras from this exported Activity's Intent to block replay.
+            intent.removeExtra(GuidedNotificationToken.EXTRA);
+        } catch (RuntimeException malformedExternalIntent) {
+            // Never crash on malicious/malformed Parcelable extras from another app.
+            return;
+        }
         if (!GuidedNotificationToken.consume(this, token)) {
             toast("Ce bouton a expiré. Lance le parcours depuis le tableau de bord.");
             return;
