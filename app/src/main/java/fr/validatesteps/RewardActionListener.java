@@ -164,14 +164,16 @@ public final class RewardActionListener extends NotificationListenerService {
                 pending.isService() || pending.isForegroundService();
             boolean requiresInput = action.getRemoteInputs() != null &&
                 action.getRemoteInputs().length > 0;
-            String label = action.title == null ? "" : action.title.toString();
+            String label = StepLabelNormalizer.reasonableLength(action.title)
+                ? action.title.toString() : "";
             String diagnostic = ClaimActionPolicy.classify(packageName,
                 label, opensActivity, isBackgroundType, requiresInput);
             observed = ObservationRank.strongest(observed, diagnostic);
 
             if (!"action_directe_compatible".equals(diagnostic)) continue;
             store.noteSeen(packageName, diagnostic);
-            if (!allowDispatch || store.alreadyAttempted(packageName, day))
+            if (!allowDispatch || store.alreadyAttempted(packageName, day) ||
+                    new ProviderCreditStore(this).userReportedReceivedToday(packageName, day))
                 return false;
             if (!onDemand && (!new RunStore(this).enabled() ||
                     !store.enabled() || !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now())))
@@ -190,13 +192,13 @@ public final class RewardActionListener extends NotificationListenerService {
                 pending.send();
                 sent = true;
                 store.record(packageName, "action_envoyee_credit_non_confirme");
-                new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_DISPATCHED, day);
+                new NightTimeline(this).addProvider(NightTimeline.Event.CLAIM_ACTION_DISPATCHED, day, packageName);
             } catch (PendingIntent.CanceledException cancelled) {
                 store.record(packageName, "action_annulee");
-                new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_CANCELED, day);
+                new NightTimeline(this).addProvider(NightTimeline.Event.CLAIM_ACTION_CANCELED, day, packageName);
             } catch (RuntimeException error) {
                 store.record(packageName, "erreur_declenchement");
-                new NightTimeline(this).add(NightTimeline.Event.CLAIM_ACTION_ERROR, day);
+                new NightTimeline(this).addProvider(NightTimeline.Event.CLAIM_ACTION_ERROR, day, packageName);
             }
             return sent;
         }

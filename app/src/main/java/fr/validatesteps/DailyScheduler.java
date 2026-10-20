@@ -25,12 +25,18 @@ public final class DailyScheduler {
 
     public static boolean exactAllowed(Context context) {
         AlarmManager manager = context.getSystemService(AlarmManager.class);
-        return Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms();
+        return manager != null &&
+            (Build.VERSION.SDK_INT < 31 || manager.canScheduleExactAlarms());
     }
 
     private static void set(Context context, int request, ZonedDateTime when) {
         if (when == null) return;
         AlarmManager manager = context.getSystemService(AlarmManager.class);
+        if (manager == null) {
+            new NightTimeline(context).add(NightTimeline.Event.ALARM_SCHEDULE_FAILED,
+                when.toLocalDate());
+            return;
+        }
         PendingIntent pending = intent(context, request, when.toLocalDate());
         long timestamp = when.toInstant().toEpochMilli();
         if (exactAllowed(context)) {
@@ -41,18 +47,25 @@ public final class DailyScheduler {
                 // Exact alarm permission was revoked between inspection and scheduling.
             }
         }
-        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timestamp, pending);
+        try {
+            manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, timestamp, pending);
+        } catch (SecurityException rejected) {
+            // The WorkManager watchdog remains scheduled, even if an Android
+            // vendor policy unexpectedly rejects this alarm.
+            new NightTimeline(context).add(NightTimeline.Event.ALARM_SCHEDULE_FAILED,
+                when.toLocalDate());
+        }
     }
 
     public static void cancelRecovery(Context context) {
-        context.getSystemService(AlarmManager.class)
-            .cancel(intent(context, RECOVERY, null));
+        AlarmManager manager = context.getSystemService(AlarmManager.class);
+        if (manager != null) manager.cancel(intent(context, RECOVERY, null));
     }
 
     /** Cancel & re-arm only the next scheduled daily read. */
     public static void schedule(Context context) {
         AlarmManager manager = context.getSystemService(AlarmManager.class);
-        manager.cancel(intent(context, DAILY, null));
+        if (manager != null) manager.cancel(intent(context, DAILY, null));
         boolean enabled = new RunStore(context).enabled();
         if (!enabled) {
             WatchdogWorker.configure(context, false, null);

@@ -1,4 +1,4 @@
-# Validate Steps (v0.17) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.18) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -364,3 +364,46 @@ La version 0.17 applique des règles strictes de **fraîcheur d'affichage**, san
 La règle de fraîcheur fait l'objet de tests unitaires (jour courant, changement de date, lecture échouée, valeur manquante, réponse de requête dépassée). Elle n'interfère pas avec l'alarme de 22 h ni avec le parcours volontaire « Tout valider ».
 
 **Important :** l'interface ne lit pas les soldes serveurs des quatre fournisseurs. Une lecture de pas fiable et une commande Android envoyée restent distinctes d'une récompense réellement validée.
+
+
+---
+
+## v0.18 — Audit professionnel des 15 concepts fondamentaux
+
+Cette matrice lie **chaque concept à son implémentation réelle dans le dépôt**. « Présent » signifie que le code et des protections sont en place ; **cela ne signifie pas que les serveurs des applications partenaires ont crédité des récompenses**.
+
+| # | Concept | Implémentation / garantie | Limite de vérification |
+|---|---|---|---|
+| 1 | Programmation fiable 22 h | `DailyScheduler`, `BootActionPolicy`, `BootReceiver` ; signal `ALARM_SCHEDULE_FAILED` si le système refuse une alarme | HyperOS peut différer des tâches |
+| 2 | Secours et reprise | `WatchdogWorker` à 22 h 20 / 23 h 15 ; `AuditWorker` avec données datées ; récupération après accord Santé Connect | L'heure exacte n'est pas garantie par WorkManager |
+| 3 | Un appui utilisateur | `MainActivity.onClaimAll` ; commande directe si disponible, puis parcours assisté facultatif | Les fournisseurs peuvent ne pas exposer de bouton |
+| 4 | Anti-doublons | `ActionBridgeState`, `ClaimRetryPolicy`, nouveau `ProviderCreditStore` : aucune deuxième tentative après réception déclarée | Ne constitue pas une preuve serveur |
+| 5 | Origine des actions | `ActionOriginPolicy` compare package et UID du `PendingIntent` et de la notification | Actions tierces soumises aux politiques des fournisseurs |
+| 6 | Assistance contrôlée | `GuidedClaimService`, `GuidedClickSafetyPolicy` : propriétaires des vues vérifiés, parents proches seulement | Nécessite utilisateur, écran et permission Accessibilité |
+| 7 | Permissions explicites | Tuiles et réglages Android + `HealthPermissionRecoveryPolicy` ; jamais de contournement | L'utilisateur peut refuser l'accès |
+| 8 | Validité des pas | `HealthReader`, `StepValuePolicy` : aucune valeur négative ou absente validée, pas de simulation | Les pas dépendent des données Santé Connect |
+| 9 | Dates et changement de jour | `TimePlanner`, `AuditDay`, `StepDisplayPolicy`, tests DST ; retour à zéro du compteur au changement de jour | Dépend de l'horloge locale du téléphone |
+| 10 | Cycle de vie Android | **Nouveau :** parcours Accessibilité désarmé en cas de recréation/connexion du service ; anciens clics non rejoués | Nécessite des tests sur appareil |
+| 11 | Performance énergétique/UI | `AccessibilityScanBudget` (400 nœuds maximum par événement), limitation des labels, animations `StepRingView` annulables | Autonomie variable selon appareil |
+| 12 | Tableau de bord | Indicateurs de permissions, anneau, quatre cartes, nouvel état de crédits déclarés 0/4 | Les états reflètent des faits locaux |
+| 13 | Preuves et état réel | **Nouveau :** `CreditEvidencePolicy` + `ProviderCreditStore` : reçu / non reçu / non vérifié, déclarés manuellement pour la journée | **Aucune confirmation automatique des soldes** |
+| 14 | Confidentialité et diagnostics | Aucune permission INTERNET, historique borné et local, libellés filtrés, `NotificationNoncePolicy` (32 caractères), `ProviderEventCode` fixe | Clipboard/journal sous le contrôle du téléphone |
+| 15 | Livraison, tests et signature | CI `lintDebug` + `testDebugUnitTest` + `assembleDebug` + `assembleRelease`; signature stable optionnelle par secrets GitHub | Signature stable indisponible tant que les secrets ne sont pas configurés |
+
+### Fonctions nouvelles ou renforcées en v0.18
+
+- **Preuve déclarative quotidienne par application** : sur la carte WeWard, Macadam, Winwalk ou Sweatcoin, « Vérifier / déclarer le crédit » permet de choisir *récompenses reçues*, *non reçues* ou *effacer ma déclaration*. Une double confirmation explicite est exigée avant d'enregistrer « reçues ». Aucun solde, compte ou montant n'est interrogé.
+- **Résumé `0/4`** : l'accueil compte uniquement les confirmations humaines du **jour actuel** et les présente comme « déclarées reçues », jamais comme des crédits serveur automatiquement vérifiés.
+- **Anti-revalidation** : les actions de notifications et les clics assistés ignorent aujourd'hui les partenaires déjà déclarés reçus par l'utilisateur. Démarrer un nouveau parcours réinitialise les statuts temporaires d'anciennes tentatives, sans effacer les déclarations de crédit.
+- **Relance Accessibilité sécurisée** : après redémarrage du processus ou reconnexion du service, aucune ancienne session persistée ne réarme les clics. Une action explicite est à nouveau nécessaire.
+- **Contrôles de l'interface tierce** : limitation à deux niveaux de parents cliquables et vérification stricte du package du bouton. Les textes inattendus de plus de 100 caractères sont ignorés sans normalisation.
+- **Données Santé Connect** : les agrégats négatifs/absents sont rejetés avant de pouvoir être marqués `steps_read` ; stockage et affichage partagent la même règle.
+- **Résilience horaire Android** : réarmement limité aux broadcasts attendus ; les alarmes rejetées et les notifications devenues inaccessibles sont consignées sans invalider la lecture Santé Connect achevée.
+- **Journal par fournisseur** : pour les événements pertinents, seuls les codes fixes `WEWARD`, `MACADAM`, `WINWALK`, `SWEATCOIN` accompagnent l'événement. Pas de texte de notification, de numéro de compte ou de données de pas dans l'historique.
+- **Sécurité des notifications** : un jeton d'action expiré, mal formé ou trop long est refusé ; les Intent mal formés ne doivent pas faire planter le tableau de bord Android.
+
+### Politiques Google Play et limites de validation
+
+L'assistance Accessibilité n'est jamais destinée à contourner des publicités, CAPTCHA ou protections des fournisseurs. Elle exige une divulgation claire et un consentement explicite, et se limite à un enchaînement déterministe initié par l'utilisateur. Une déclaration d'utilisation de l'API Accessibilité est nécessaire pour une publication sur Google Play. Voir : https://support.google.com/googleplay/android-developer/answer/10964491?hl=fr
+
+**Objectif encore ouvert** : constater des **crédits effectifs** sur les quatre comptes. Une action envoyée, un clic tenté et une lecture des pas ne garantissent pas un crédit. Aucun partenaire n'est contacté, aucune interface privée ni API non documentée n'est employée.

@@ -1,8 +1,5 @@
 package fr.validatesteps;
 
-import java.text.Normalizer;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /** Explicit, one-tap, user-initiated UI script. Never act on ads or login. */
@@ -38,9 +35,7 @@ public final class GuidedClaimPolicy {
     }
 
     public static String normalize(String text) {
-        if (text == null) return "";
-        return Normalizer.normalize(text, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+", "").trim().replaceAll("\\s+", " ")
-            .toLowerCase(Locale.ROOT);
+        return StepLabelNormalizer.normalize(text);
     }
+
 }

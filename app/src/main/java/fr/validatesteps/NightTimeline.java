@@ -14,14 +14,17 @@ public final class NightTimeline {
     public enum Event {
         ALARM_RECEIVED, ALARM_REJECTED, RECOVERY_RECEIVED,
         WATCHDOG_RECEIVED, WATCHDOG_IGNORED, WATCHDOG_ENQUEUED,
-        REARMED_AFTER_BOOT, AUDIT_ENQUEUED, AUDIT_STARTED,
+        REARMED_AFTER_BOOT, ALARM_SCHEDULE_FAILED, NOTIFICATION_BLOCKED,
+        AUDIT_ENQUEUED, AUDIT_STARTED,
         AUDIT_OK, AUDIT_BLOCKED, AUDIT_RETRY_NEEDED, AUDIT_OLD_DAY,
         AUDIT_PERMISSION_RECOVERED,
         CLAIM_ACTION_DISPATCHED, CLAIM_ACTION_CANCELED, CLAIM_ACTION_ERROR,
         MANUAL_DIRECT_REQUESTED,
         GUIDED_STARTED, GUIDED_CLICK_ATTEMPTED, GUIDED_CLICK_REFUSED,
         GUIDED_BUTTON_MISSING, GUIDED_APP_ABSENT, GUIDED_OPEN_BLOCKED,
-        GUIDED_FINISHED, GUIDED_CANCELED
+        GUIDED_FINISHED, GUIDED_CANCELED,
+        USER_CREDIT_REPORTED_RECEIVED, USER_CREDIT_REPORTED_MISSING,
+        USER_CREDIT_REPORT_CLEARED
     }
 
     private static final Object LOCK = new Object();
@@ -33,8 +36,20 @@ public final class NightTimeline {
     }
 
     public void add(Event event, LocalDate auditDate) {
+        appendLine(event, auditDate, "");
+    }
+
+    /** Include only a fixed, allowlisted app identifier; no account data. */
+    public void addProvider(Event event, LocalDate auditDate, String packageName) {
+        String provider = ProviderEventCode.code(packageName);
+        if (provider.isEmpty()) return;
+        appendLine(event, auditDate, provider);
+    }
+
+    private void appendLine(Event event, LocalDate auditDate, String provider) {
         String line = OffsetDateTime.now().toString() + " | " + event.name()
-            + " | " + (auditDate == null ? "-" : auditDate.toString());
+            + " | " + (auditDate == null ? "-" : auditDate.toString())
+            + (provider.isEmpty() ? "" : " | " + provider);
         synchronized (LOCK) {
             String old = prefs.getString(KEY, "");
             prefs.edit().putString(KEY, TimelinePolicy.append(old, line)).commit();

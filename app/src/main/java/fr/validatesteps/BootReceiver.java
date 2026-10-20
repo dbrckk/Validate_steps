@@ -7,6 +7,7 @@ import android.content.Intent;
 /** Re-arm on reboot, time changes and exact-alarm permission grants. */
 public final class BootReceiver extends BroadcastReceiver {
     @Override public void onReceive(Context context, Intent intent) {
+        if (intent == null || !BootActionPolicy.shouldRearm(intent.getAction())) return;
         new NightTimeline(context).add(NightTimeline.Event.REARMED_AFTER_BOOT, null);
         DailyScheduler.schedule(context);
         RewardActionListener.ensureConnected(context);

@@ -66,6 +66,8 @@ public final class HealthReader {
                     @Override public void onResult(AggregateRecordsResponse<Long> response) {
                         Long count = response.get(StepsRecord.STEPS_COUNT_TOTAL);
                         if (count == null) result.accept(null, "no_steps_data");
+                        else if (!StepValuePolicy.valid(count))
+                            result.accept(null, "invalid_steps_data");
                         else result.accept(count, "steps_read");
                     }
                     @Override public void onError(HealthConnectException error) {

@@ -17,7 +17,7 @@ public final class StepDisplayPolicy {
         return requestedDay != null && currentDay != null
             && requestedDay.equals(currentDay)
             && "steps_read".equals(status)
-            && steps != null && steps >= 0;
+            && StepValuePolicy.valid(steps);
     }
 
     /** Suppress stale asynchronous callbacks from a superseded request. */

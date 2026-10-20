@@ -21,9 +21,15 @@ public final class Notifier {
                 != PackageManager.PERMISSION_GRANTED) return;
 
         NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null) return;
         NotificationChannel channel = new NotificationChannel(
             CHANNEL, "Suivi autonome des pas", NotificationManager.IMPORTANCE_DEFAULT);
-        manager.createNotificationChannel(channel);
+        try {
+            manager.createNotificationChannel(channel);
+        } catch (SecurityException permissionsChanged) {
+            new NightTimeline(context).add(NightTimeline.Event.NOTIFICATION_BLOCKED, day);
+            return;
+        }
 
         String value = steps == null ? "indisponibles (" + status + ")" : steps + " pas";
         String summary = "Pas de " + day + " : " + value;
@@ -54,6 +60,12 @@ public final class Notifier {
             builder.setContentIntent(viewOnly);
         }
         Notification notification = builder.build();
-        manager.notify(2200, notification);
+        try {
+            manager.notify(2200, notification);
+        } catch (SecurityException permissionsChanged) {
+            // The step audit must still succeed if Android revokes the
+            // notification permission while the worker is finishing.
+            new NightTimeline(context).add(NightTimeline.Event.NOTIFICATION_BLOCKED, day);
+        }
     }
 }

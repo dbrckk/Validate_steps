@@ -46,6 +46,7 @@ public final class MainActivity extends Activity {
     private TextView scheduleStatus;
     private TextView stepSource;
     private TextView subtitle;
+    private TextView creditSummary;
     private TextView stopGuideButton;
     private TextView timelineText;
     private Switch scheduleSwitch;
@@ -71,10 +72,17 @@ public final class MainActivity extends Activity {
     }
 
     private void handleNotificationIntent(Intent intent) {
-        if (intent == null || !intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
-        String token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
-        // Remove extras even from this Activity's in-memory Intent to block replay.
-        intent.removeExtra(GuidedNotificationToken.EXTRA);
+        if (intent == null) return;
+        String token;
+        try {
+            if (!intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
+            token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
+            // Remove extras from this exported Activity's Intent to block replay.
+            intent.removeExtra(GuidedNotificationToken.EXTRA);
+        } catch (RuntimeException malformedExternalIntent) {
+            // Never crash on malicious/malformed Parcelable extras from another app.
+            return;
+        }
         if (!GuidedNotificationToken.consume(this, token)) {
             toast("Ce bouton a expiré. Lance le parcours depuis le tableau de bord.");
             return;
@@ -158,7 +166,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.17", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.18", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -228,6 +236,17 @@ public final class MainActivity extends Activity {
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(dp(6), dp(13), dp(6), dp(5));
         content.addView(subtitle);
+
+        creditSummary = label("SUIVI DES CRÉDITS · non vérifiés", 13,
+            DashboardStyles.TEXT, true);
+        creditSummary.setGravity(Gravity.CENTER);
+        creditSummary.setPadding(dp(10), dp(12), dp(10), dp(12));
+        creditSummary.setBackground(DashboardStyles.stroke(this,
+            DashboardStyles.SURFACE, 0xff2e4963, 14, 1));
+        LinearLayout.LayoutParams creditsParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        creditsParams.bottomMargin = dp(10);
+        content.addView(creditSummary, creditsParams);
 
         LinearLayout row = row();
         TextView refresh = action("↻  Actualiser les pas", DashboardStyles.SURFACE_RAISED,
@@ -419,10 +438,69 @@ public final class MainActivity extends Activity {
         detail.setLineSpacing(dp(3), 1f);
         card.addView(detail);
 
+        // The user can report an actual provider-side credit after checking
+        // the source app. Such a report is never represented as server proof.
+        ProviderCreditStore evidence = new ProviderCreditStore(this);
+        String credit = evidence.visibleStatus(pkg, LocalDate.now());
+        boolean reportedReceived = evidence.userReportedReceivedToday(pkg, LocalDate.now());
+        TextView evidenceText = label(credit, 12,
+            reportedReceived ? DashboardStyles.ACCENT : DashboardStyles.MUTED, true);
+        evidenceText.setPadding(0, dp(12), 0, dp(8));
+        card.addView(evidenceText);
+        TextView report = action("Vérifier / déclarer le crédit  ↗",
+            DashboardStyles.SURFACE_RAISED, DashboardStyles.TEXT,
+            () -> showCreditEvidenceDialog(name, pkg));
+        card.addView(report, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         cp.bottomMargin = dp(12);
         providersSection.addView(card, cp);
+    }
+
+    /**
+     * Explicit first-party user statement ONLY. No providers expose authenticated
+     * reward settlement information through our Android application.
+     */
+    private void showCreditEvidenceDialog(String name, String pkg) {
+        String[] choices = {
+            "Oui, récompenses visibles dans " + name,
+            "Non, récompenses absentes de " + name,
+            "Effacer ma déclaration du jour"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Crédits " + name + " · vérification manuelle")
+            .setMessage("Vérifie directement le solde ou l'historique de " + name +
+                ". Validate Steps ne peut pas confirmer un gain auprès du fournisseur.")
+            .setItems(choices, (dialog, which) -> {
+                if (which == 0) {
+                    new AlertDialog.Builder(this)
+                        .setTitle("Récompenses réellement reçues ?")
+                        .setMessage("Tu déclares les avoir personnellement vérifiées dans " +
+                            name + ". Cette indication est conservée localement et " +
+                            "ne constitue pas une attestation du fournisseur.")
+                        .setPositiveButton("Je confirme", (d, w) -> {
+                            new ProviderCreditStore(this).report(pkg, LocalDate.now(),
+                                CreditEvidencePolicy.USER_REPORTED_RECEIVED);
+                            new NightTimeline(this).addProvider(
+                                NightTimeline.Event.USER_CREDIT_REPORTED_RECEIVED, LocalDate.now(), pkg);
+                            refresh();
+                        })
+                        .setNegativeButton("Annuler", null).show();
+                } else if (which == 1) {
+                    new ProviderCreditStore(this).report(pkg, LocalDate.now(),
+                        CreditEvidencePolicy.USER_REPORTED_MISSING);
+                    new NightTimeline(this).addProvider(
+                        NightTimeline.Event.USER_CREDIT_REPORTED_MISSING, LocalDate.now(), pkg);
+                    refresh();
+                } else if (which == 2) {
+                    new ProviderCreditStore(this).clear(pkg);
+                    new NightTimeline(this).addProvider(
+                        NightTimeline.Event.USER_CREDIT_REPORT_CLEARED, LocalDate.now(), pkg);
+                    refresh();
+                }
+            }).setNegativeButton("Fermer", null).show();
     }
 
     private void automation() {
@@ -891,6 +969,15 @@ public final class MainActivity extends Activity {
                     : "◌  RELEVÉ DES PAS · HORAIRE APPROXIMATIF");
         rebuildReadiness();
         rebuildProviders();
+        if (creditSummary != null) {
+            int declared = new ProviderCreditStore(this)
+                .userReportedReceivedCount(LocalDate.now());
+            creditSummary.setText("SUIVI DES CRÉDITS · " + declared +
+                " / 4 déclarés reçus par vous aujourd'hui");
+            creditSummary.setContentDescription(
+                declared + " sur 4 récompenses déclarées reçues par vous aujourd'hui. " +
+                "Aucune validation automatique des soldes des fournisseurs.");
+        }
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
