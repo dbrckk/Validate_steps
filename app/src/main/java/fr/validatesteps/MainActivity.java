@@ -419,10 +419,69 @@ public final class MainActivity extends Activity {
         detail.setLineSpacing(dp(3), 1f);
         card.addView(detail);
 
+        // The user can report an actual provider-side credit after checking
+        // the source app. Such a report is never represented as server proof.
+        ProviderCreditStore evidence = new ProviderCreditStore(this);
+        String credit = evidence.visibleStatus(pkg, LocalDate.now());
+        boolean reportedReceived = evidence.userReportedReceivedToday(pkg, LocalDate.now());
+        TextView evidenceText = label(credit, 12,
+            reportedReceived ? DashboardStyles.ACCENT : DashboardStyles.MUTED, true);
+        evidenceText.setPadding(0, dp(12), 0, dp(8));
+        card.addView(evidenceText);
+        TextView report = action("Vérifier / déclarer le crédit  ↗",
+            DashboardStyles.SURFACE_RAISED, DashboardStyles.TEXT,
+            () -> showCreditEvidenceDialog(name, pkg));
+        card.addView(report, new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(46)));
+
         LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         cp.bottomMargin = dp(12);
         providersSection.addView(card, cp);
+    }
+
+    /**
+     * Explicit first-party user statement ONLY. No providers expose authenticated
+     * reward settlement information through our Android application.
+     */
+    private void showCreditEvidenceDialog(String name, String pkg) {
+        String[] choices = {
+            "Oui, récompenses visibles dans " + name,
+            "Non, récompenses absentes de " + name,
+            "Effacer ma déclaration du jour"
+        };
+        new AlertDialog.Builder(this)
+            .setTitle("Crédits " + name + " · vérification manuelle")
+            .setMessage("Vérifie directement le solde ou l'historique de " + name +
+                ". Validate Steps ne peut pas confirmer un gain auprès du fournisseur.")
+            .setItems(choices, (dialog, which) -> {
+                if (which == 0) {
+                    new AlertDialog.Builder(this)
+                        .setTitle("Récompenses réellement reçues ?")
+                        .setMessage("Tu déclares les avoir personnellement vérifiées dans " +
+                            name + ". Cette indication est conservée localement et " +
+                            "ne constitue pas une attestation du fournisseur.")
+                        .setPositiveButton("Je confirme", (d, w) -> {
+                            new ProviderCreditStore(this).report(pkg, LocalDate.now(),
+                                CreditEvidencePolicy.USER_REPORTED_RECEIVED);
+                            new NightTimeline(this).add(
+                                NightTimeline.Event.USER_CREDIT_REPORTED_RECEIVED, LocalDate.now());
+                            refresh();
+                        })
+                        .setNegativeButton("Annuler", null).show();
+                } else if (which == 1) {
+                    new ProviderCreditStore(this).report(pkg, LocalDate.now(),
+                        CreditEvidencePolicy.USER_REPORTED_MISSING);
+                    new NightTimeline(this).add(
+                        NightTimeline.Event.USER_CREDIT_REPORTED_MISSING, LocalDate.now());
+                    refresh();
+                } else if (which == 2) {
+                    new ProviderCreditStore(this).clear(pkg);
+                    new NightTimeline(this).add(
+                        NightTimeline.Event.USER_CREDIT_REPORT_CLEARED, LocalDate.now());
+                    refresh();
+                }
+            }).setNegativeButton("Fermer", null).show();
     }
 
     private void automation() {
