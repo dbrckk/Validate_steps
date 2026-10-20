@@ -21,6 +21,7 @@ public final class Notifier {
                 != PackageManager.PERMISSION_GRANTED) return;
 
         NotificationManager manager = context.getSystemService(NotificationManager.class);
+        if (manager == null) return;
         NotificationChannel channel = new NotificationChannel(
             CHANNEL, "Suivi autonome des pas", NotificationManager.IMPORTANCE_DEFAULT);
         manager.createNotificationChannel(channel);
