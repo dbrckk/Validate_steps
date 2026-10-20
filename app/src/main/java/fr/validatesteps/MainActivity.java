@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
     private TextView stepSource;
     private TextView subtitle;
     private TextView creditSummary;
+    private TextView dailyReportText;
     private TextView stopGuideButton;
     private TextView timelineText;
     private Switch scheduleSwitch;
@@ -116,6 +117,8 @@ public final class MainActivity extends Activity {
         providersSection = column();
         content.addView(providersSection);
         space(content, 22);
+        dailyReportPanel();
+        space(content, 24);
         automation();
         space(content, 24);
         settings();
@@ -166,7 +169,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.20", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.21", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -501,6 +504,57 @@ public final class MainActivity extends Activity {
                     refresh();
                 }
             }).setNegativeButton("Fermer", null).show();
+    }
+
+    /** Read-only daily status report. No external balances or authentication. */
+    private void dailyReportPanel() {
+        title(content, "BILAN DU JOUR",
+            "Actions, clics et déclarations de récompenses · 4 applications");
+        LinearLayout card = column();
+        card.setPadding(dp(16), dp(18), dp(16), dp(16));
+        card.setBackground(DashboardStyles.stroke(this, DashboardStyles.SURFACE,
+            0xff2b4661, 20, 1));
+
+        TextView caution = label(
+            "Les commandes et clics restent des tentatives. Seules vos " +
+            "déclarations signalent les récompenses consultées dans les applications.",
+            12, DashboardStyles.WARNING, false);
+        caution.setPadding(0, 0, 0, dp(14));
+        card.addView(caution);
+
+        dailyReportText = label("", 12, DashboardStyles.TEXT, false);
+        dailyReportText.setLineSpacing(dp(4), 1f);
+        dailyReportText.setTextIsSelectable(true);
+        card.addView(dailyReportText);
+        space(card, 16);
+
+        LinearLayout buttons = row();
+        TextView copy = action("Copier le bilan",
+            DashboardStyles.SURFACE_RAISED, DashboardStyles.TEXT, () -> {
+                ClipboardManager manager = getSystemService(ClipboardManager.class);
+                if (manager != null) {
+                    manager.setPrimaryClip(ClipData.newPlainText(
+                        "Validate Steps · Rapport quotidien",
+                        DailyProviderReport.build(this, LocalDate.now())));
+                    toast("Bilan du jour copié");
+                } else {
+                    toast("Presse-papiers Android indisponible");
+                }
+            });
+        LinearLayout.LayoutParams a = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        a.rightMargin = dp(6);
+        buttons.addView(copy, a);
+
+        TextView update = action("Actualiser",
+            DashboardStyles.SURFACE_RAISED, DashboardStyles.TEXT, () -> {
+                refresh();
+                toast("Bilan local mis à jour");
+            });
+        LinearLayout.LayoutParams b = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        b.leftMargin = dp(6);
+        buttons.addView(update, b);
+        card.addView(buttons);
+        content.addView(card);
     }
 
     private void automation() {
@@ -978,6 +1032,8 @@ public final class MainActivity extends Activity {
                 declared + " sur 4 récompenses déclarées reçues par vous aujourd'hui. " +
                 "Aucune validation automatique des soldes des fournisseurs.");
         }
+        if (dailyReportText != null)
+            dailyReportText.setText(DailyProviderReport.build(this, LocalDate.now()));
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
