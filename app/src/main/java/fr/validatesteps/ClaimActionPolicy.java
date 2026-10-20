@@ -1,8 +1,6 @@
 package fr.validatesteps;
 
-import java.text.Normalizer;
 import java.time.ZonedDateTime;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -69,10 +67,7 @@ public final class ClaimActionPolicy {
     }
 
     private static String normalize(String value) {
-        if (value == null) return "";
-        String plain = Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+", "");
-        return plain.trim().replaceAll("\\s+", " ")
-            .toLowerCase(Locale.ROOT);
+        return StepLabelNormalizer.normalize(value);
     }
+
 }
