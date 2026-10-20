@@ -1,4 +1,4 @@
-# Validate Steps v1.0.0 — relevé Android stable à 22 h
+# Validate Steps (v1.1.0) — mode autonome sans Accessibilité
 
 Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et proposer une assistance facultative pour les applications de récompenses. Le code est compilé et contrôlé dans GitHub Actions. **Aucun mécanisme autorisé ne garantit le crédit automatique de tous les fournisseurs.**
 
@@ -508,3 +508,30 @@ Voir [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) avant toute diffusion comme AP
 | Confidentialité | Pas de permission Internet, accès Android demandé explicitement |
 
 Aucun logiciel ne peut promettre une version « définitive » au sens d'impossible à corriger : de futurs changements d'Android, d'HyperOS ou des fournisseurs peuvent nécessiter des mises à jour.
+
+
+## v1.1.0 — Mode autonome sans assistance à un appui
+
+**Priorité : fonctionner en arrière-plan sans service Accessibilité, sans déclencher de clics dans d'autres applications.** La configuration du relevé et de la recherche de commandes directes est accessible depuis le bouton central « ACTIVER LE MODE AUTONOME 22 H ».
+
+### Ce qui fonctionne sans assistance
+
+1. Relevé quotidien des pas réels via Santé Connect à **22 h**, repris par les alarmes de secours et WorkManager lorsque Android le permet.
+2. Après consentement distinct, le `NotificationListenerService` inspecte localement les seules notifications WeWard, Macadam et Winwalk, et peut envoyer leurs `PendingIntent` **directs** strictement liés aux pas **uniquement si le fournisseur les publie réellement**. La fenêtre automatique reste 22 h à 23 h 40. L'absence d'un tel bouton **ne peut pas être corrigée par Validate Steps** sans une interface officiellement autorisée.
+3. Le tableau de bord indique séparément pour les **quatre** applications : service installé, consentement Android, connexion du listener, commande directe envoyée ou non, et raisons connues des blocages. Un `PendingIntent.send()` réussi ne constitue **pas** une preuve de crédit.
+4. Sur demande, une **notification de bilan vers 23 h 15** rappelle les crédits encore non vérifiés, sans accéder à un compte, sans ouvrir les applications et **sans lancer de validation**. Cette option est **désactivée par défaut**, limitée à une notification par nuit et exige `POST_NOTIFICATIONS`. Elle n'est pas envoyée si la tâche de secours arrive après 23 h 40.
+5. Le bouton « Examiner les actions directes maintenant » permet un test **sans Accessibilité**. L'accès à l'assistance classique est conservé séparément sous « Paramètres → Assistance manuelle (facultative) », et n'est **jamais** lancé par le bouton central ou par une notification de Validate Steps.
+
+### Limites vérifiées auprès des fournisseurs
+
+- **WeWard** documente l'obligation d'ouvrir l'application et d'appuyer sur « Valider mes pas » pour convertir les pas. Source : https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses
+- **Macadam** impose une validation dans son application avant minuit et des conditions propres aux paliers de récompenses. Source : https://help.macadam.app/fr/articles/469049-comment-fonctionnent-la-validation-des-pas-et-les-recompenses
+- **Winwalk** ne dispose pas ici d'un mécanisme de validation sans interface officiellement confirmé.
+- **Sweatcoin** suit et convertit ses pas dans son propre processus d'arrière-plan ; cette conversion ne dépend pas de Validate Steps. Source : https://help.sweatco.in/hc/en-us/articles/360012911431-Does-Sweatcoin-count-my-steps-when-it-s-in-the-background
+
+**Important :** la v1.1 ne prétend pas valider intégralement les récompenses de WeWard/Macadam/Winwalk sans leur accord. Elle automatise ce qu'Android et les fournisseurs autorisent, mais ne contourne ni publicité, CAPTCHA, connexion ni validation anti-triche.
+
+### Tests et compatibilité
+
+Les règles autonomes et du rappel nocturne sont couvertes par des tests unitaires (autorisation, date, fenêtre de 23 h 15 à 23 h 40, absence de répétition, mode arrêté, non-confirmation des crédits). Les APK sont compilés et vérifiés dans GitHub Actions. Sur HyperOS, les alarmes et le maintien des services en arrière-plan doivent encore être testés sur le téléphone réel.
+
