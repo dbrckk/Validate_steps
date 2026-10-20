@@ -47,6 +47,7 @@ public final class MainActivity extends Activity {
     private TextView scheduleStatus;
     private TextView stepSource;
     private TextView subtitle;
+    private TextView autonomousSummary;
     private TextView creditSummary;
     private TextView dailyReportText;
     private TextView stopGuideButton;
@@ -55,6 +56,7 @@ public final class MainActivity extends Activity {
     private LocalDate selectedHistoryDate;
     private Switch scheduleSwitch;
     private Switch notificationSwitch;
+    private Switch reviewSwitch;
     private boolean updating;
     private int lastDirectActions = -1;
 
@@ -174,7 +176,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v1.0", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v1.1", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -216,16 +218,23 @@ public final class MainActivity extends Activity {
     }
 
     private void actions() {
-        TextView main = label("✓   TOUT VALIDER", 18, 0xff082223, true);
+        TextView main = label("◉   ACTIVER LE MODE AUTONOME 22 H", 16, 0xff082223, true);
         main.setGravity(Gravity.CENTER);
         main.setPadding(dp(20), dp(21), dp(20), dp(21));
         main.setBackground(DashboardStyles.gradient(this, 0xff82f8d6,
             DashboardStyles.ACCENT, 20));
         main.setElevation(dp(5));
-        main.setContentDescription("Lancer le parcours à un appui de validation des pas");
-        main.setOnClickListener(v -> onClaimAll());
+        main.setContentDescription("Configurer le relevé et les actions directes à 22 heures, sans Accessibilité");
+        main.setOnClickListener(v -> configureAutonomousMode());
         content.addView(main, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView direct = action("Examiner les actions directes maintenant",
+            DashboardStyles.SURFACE_RAISED, DashboardStyles.TEXT, this::onClaimAll);
+        LinearLayout.LayoutParams directParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
+        directParams.topMargin = dp(10);
+        content.addView(direct, directParams);
 
         stopGuideButton = action("■  Arrêter le parcours en cours",
             0xff3a2736, DashboardStyles.TEXT, () -> {
@@ -239,7 +248,7 @@ public final class MainActivity extends Activity {
         stopParams.topMargin = dp(9);
         content.addView(stopGuideButton, stopParams);
 
-        subtitle = label("Actions directes + parcours assisté · crédits à vérifier",
+        subtitle = label("Sans Accessibilité · commandes de notification uniquement",
             12, DashboardStyles.MUTED, false);
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(dp(6), dp(13), dp(6), dp(5));
@@ -350,16 +359,11 @@ public final class MainActivity extends Activity {
                     toast("Diagnostic des notifications actualisé");
                 }
             }, true);
-        readinessTile(second, "UN APPUI", GuidedClaimService.connected(),
-            GuidedClaimService.connected() ? "Assistance prête" : "Configuration requise",
-            () -> {
-                if (!getPreferences(MODE_PRIVATE)
-                        .getBoolean("assistance_disclosed", false)) {
-                    discloseAccessibility();
-                } else {
-                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                }
-            }, false);
+        boolean autonomous = AutonomousModePolicy.autonomousReady(
+            scheduled, listening, access, health);
+        readinessTile(second, "SANS ASSISTANCE", autonomous,
+            autonomous ? "Mode autonome configuré" : "Configuration nécessaire",
+            this::configureAutonomousMode, false);
         LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         secondLp.topMargin = dp(10);
@@ -654,7 +658,8 @@ public final class MainActivity extends Activity {
     }
 
     private void automation() {
-        title(content, "AUTOMATISATION", "Deux méthodes complémentaires");
+        title(content, "AUTOMATISATION SANS ASSISTANCE",
+            "Santé Connect + actions directes émises par les fournisseurs");
         LinearLayout card = column();
         card.setPadding(dp(17), dp(16), dp(17), dp(16));
         card.setBackground(DashboardStyles.round(this, DashboardStyles.SURFACE, 20));
@@ -764,8 +769,9 @@ public final class MainActivity extends Activity {
         });
         setting("Accès aux notifications", "Boutons directs proposés par les services",
             () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        setting("Assistance à un appui", "Autorisation Android d'interagir avec les boutons visibles",
-            this::discloseAccessibility);
+        setting("Assistance manuelle (facultative)",
+            "Option indépendante : ouvrir les applications à l'écran, seulement sur demande",
+            this::startOptionalGuided);
         setting("Notifications système", "Recevoir les informations de suivi",
             () -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11));
         setting("Paramètres de l'application", "Batterie, autorisations, restrictions HyperOS",
@@ -1106,6 +1112,8 @@ public final class MainActivity extends Activity {
         updating = true;
         if (scheduleSwitch != null) scheduleSwitch.setChecked(run.enabled());
         if (notificationSwitch != null) notificationSwitch.setChecked(action.enabled());
+        if (reviewSwitch != null)
+            reviewSwitch.setChecked(AutonomousReviewReminder.enabled(this));
         updating = false;
         boolean healthReady = HealthReader.backgroundSupported() &&
             checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
@@ -1140,9 +1148,12 @@ public final class MainActivity extends Activity {
             new ClaimFlowState(this).active() ? View.VISIBLE : View.GONE);
         if (subtitle != null) subtitle.setText(
             new ClaimFlowState(this).active()
-                ? new ClaimFlowState(this).summary()
+                ? "Assistance facultative en cours · " + new ClaimFlowState(this).summary()
                 : lastDirectActions > 0
-                    ? lastDirectActions + " action(s) envoyée(s) · crédits non confirmés"
-                    : "Un appui : actions directes, puis parcours assisté si autorisé");
+                    ? lastDirectActions + " commande(s) Android envoyée(s) · crédits non confirmés"
+                    : "Aucun parcours Accessibilité nécessaire pour le relevé nocturne");
+        if (autonomousSummary != null)
+            autonomousSummary.setText(AutonomousSnapshot.describe(
+                this, RewardActionListener.isConnected()));
     }
 }
