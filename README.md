@@ -456,6 +456,8 @@ Les données du rapport sont **scindées par date locale**. Un événement d'hie
 
 - Aucun accès Internet, aucun identifiant de compte, aucune lecture des soldes ou des messages privés.
 - Les statuts de parcours sont des codes fixes de type `GuidedOutcome`, non le texte arbitraire d'une notification.
+- Le rapport affiche aussi la raison observée pour une notification non utilisable : aucun bouton, bouton ouvrant une interface, origine non vérifiée, libellé ambigu, saisie requise ou autre type non reconnu. Seuls des **codes fixes prédéfinis** sont interprétés ; le contenu des notifications n'est pas copié.
+- Un clic assisté réellement tenté est retenu **pour le jour courant**, même si une relance ou une interruption remplace ensuite le dernier état du parcours. Cela empêche de sous-déclarer des tentatives sans jamais prétendre qu'elles ont été créditées.
 - Le rapport copié contient les types d'actions et les déclarations, **pas le nombre individuel de pas**.
 - Les compteurs affichent séparément le nombre de commandes envoyées, de clics assistés tentés, de réceptions déclarées, de non-réceptions déclarées et de cas non vérifiés.
 - Aucun déclenchement automatique, clic ou déclaration ne peut être présenté comme une preuve serveur.
