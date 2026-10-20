@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_signed:
+        description: "Require a signed APK using protected repository secrets"
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
 jobs:
@@ -29,13 +35,23 @@ jobs:
           gradle-version: '8.10.2'
       - name: Compile and test
         run: gradle --no-daemon lintDebug testDebugUnitTest assembleDebug assembleRelease
+      - name: Verify installable debug APK and write SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk"
+          sha256sum "$apk" > app/build/outputs/apk/debug/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: validate-steps-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/SHA256SUMS.txt
           if-no-files-found: error
       - name: Prepare stable signing key on trusted main builds
-        if: github.event_name != 'pull_request'
+        if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
         id: signing
         env:
           KEYSTORE_BASE64: ${{ secrets.VS_KEYSTORE_B64 }}
@@ -47,7 +63,11 @@ jobs:
           set -euo pipefail
           if [[ -z "$KEYSTORE_BASE64" || -z "$STORE_PASSWORD" || -z "$SIGNING_ALIAS" || -z "$KEY_PASSWORD" ]]; then
             echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "Signing secrets not configured: only the ephemeral debug APK is published."
+            echo "Signing secrets not configured: only a debug APK is available."
+            if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.publish_signed }}" == "true" ]]; then
+              echo "::error::A signed release was requested but the four signing secrets are missing."
+              exit 1
+            fi
             exit 0
           fi
           signing_file="$RUNNER_TEMP/validate-steps-private.jks"
@@ -69,10 +89,13 @@ jobs:
           apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk"
+          sha256sum "$apk" > app/build/outputs/apk/release/SHA256SUMS.txt
       - name: Publish stable signed release (if configured)
         if: steps.signing.outputs.ready == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: validate-steps-release-signed
-          path: app/build/outputs/apk/release/app-release.apk
+          path: |
+            app/build/outputs/apk/release/app-release.apk
+            app/build/outputs/apk/release/SHA256SUMS.txt
           if-no-files-found: error
