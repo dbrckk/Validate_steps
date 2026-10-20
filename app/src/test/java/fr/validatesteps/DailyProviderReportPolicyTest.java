@@ -70,6 +70,29 @@ public final class DailyProviderReportPolicyTest {
         assertFalse(text.contains("Déclarations : 4 reçue(s)"));
     }
 
+    @Test public void laterCancellationCannotEraseEarlierRealClickAttempt() {
+        String report = DailyProviderReportPolicy.render(day, "steps_read",
+            new DailyProviderReportPolicy.Entry[] {
+                new DailyProviderReportPolicy.Entry("WeWard", true,
+                    "", "notification_sans_bouton", GuidedOutcome.CANCELED,
+                    CreditEvidencePolicy.UNKNOWN, true)
+            });
+        assertTrue(report.contains("Clics assistés tentés : 1"));
+        assertTrue(report.contains("clic avait aussi été tenté plus tôt"));
+        assertTrue(report.contains("Non vérifié aujourd'hui"));
+    }
+
+    @Test public void missingButtonNeverCountsAsGuidedClick() {
+        String report = DailyProviderReportPolicy.render(day, "",
+            new DailyProviderReportPolicy.Entry[] {
+                new DailyProviderReportPolicy.Entry("Macadam", true, "",
+                    "notification_sans_bouton", GuidedOutcome.BUTTON_MISSING,
+                    CreditEvidencePolicy.UNKNOWN, false)
+            });
+        assertTrue(report.contains("Clics assistés tentés : 0"));
+        assertFalse(report.contains("clic avait aussi été tenté"));
+    }
+
     @Test public void unexpectedObservationCodesDoNotLeakTextIntoDailyReport() {
         String hostile = "CUSTOM_PASSWORD_OR_NOTIFICATION_BODY_123";
         String text = DailyProviderReportPolicy.render(day, "",
