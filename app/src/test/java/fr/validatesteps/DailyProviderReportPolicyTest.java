@@ -104,6 +104,35 @@ public final class DailyProviderReportPolicyTest {
         assertTrue(text.contains("Aucun bouton analysé"));
     }
 
+    @Test public void historicReportDoesNotClaimOldInstallationState() {
+        String old = DailyProviderReportPolicy.renderArchive(day,
+            "steps_read", new DailyProviderReportPolicy.Entry[] {
+                new DailyProviderReportPolicy.Entry(
+                    "WeWard", false, "action_envoyee_credit_non_confirme",
+                    "notification_sans_bouton", GuidedOutcome.CANCELED,
+                    CreditEvidencePolicy.USER_REPORTED_RECEIVED, true)
+            });
+        assertTrue(old.contains("BILAN DU 20/10/2026"));
+        assertTrue(old.contains("Réception déclarée par vous"));
+        assertTrue(old.contains("Clics assistés tentés : 1"));
+        assertFalse(old.contains("non installée"));
+        assertFalse(old.contains("installée"));
+        assertTrue(old.contains("aucune preuve de crédit côté serveur"));
+    }
+
+    @Test public void archiveDoesNotInferRewardSettlementFromCommandsAlone() {
+        String old = DailyProviderReportPolicy.renderArchive(day, "",
+            new DailyProviderReportPolicy.Entry[] {
+                new DailyProviderReportPolicy.Entry(
+                    "Macadam", false, "action_envoyee_credit_non_confirme",
+                    GuidedOutcome.CLICK_ATTEMPTED, CreditEvidencePolicy.UNKNOWN)
+            });
+        assertTrue(old.contains("Commandes Android envoyées : 1"));
+        assertTrue(old.contains("Clics assistés tentés : 1"));
+        assertTrue(old.contains("Non vérifié aujourd'hui"));
+        assertTrue(old.contains("aucune preuve de crédit côté serveur"));
+    }
+
     @Test public void unknownCodesAreSafeAndNullDateIsHandled() {
         assertTrue(DailyProviderReportPolicy.directDescription("provider_confirmed")
             .contains("Aucune commande"));
