@@ -1,6 +1,6 @@
-# Validate Steps (v0.21) — 22 h autonome, sans interface quotidienne
+# Validate Steps v1.0.0 — relevé Android stable à 22 h
 
-Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
+Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et proposer une assistance facultative pour les applications de récompenses. Le code est compilé et contrôlé dans GitHub Actions. **Aucun mécanisme autorisé ne garantit le crédit automatique de tous les fournisseurs.**
 
 ## Fonctionnalités
 - **22:00 heure locale** : `AlarmManager` lance un `BroadcastReceiver`, qui confie la lecture à **WorkManager** (`androidx.work:work-runtime:2.12.0`). L'écran ne s'ouvre pas.
@@ -464,3 +464,47 @@ Les données du rapport sont **scindées par date locale**. Un événement d'hie
 - Tests unitaires de la classification des tentatives et de la distinction entre crédit déclaré et crédit jamais vérifié par l'application.
 
 **Limite importante :** le bilan résume ce que le téléphone a réellement observé et ce que l'utilisateur a déclaré. Sans preuve côté fournisseur, il est impossible de certifier automatiquement que toutes les récompenses ont été encaissées.
+
+
+## v1.0.0 — Base stable, historique de 30 jours et contrôles de publication
+
+Cette version consolide l'architecture Android, les 15 piliers de qualité et les corrections des v0.3 à v0.21. L'objectif **stable** signifie ici : code compilé, tests JUnit et lint réussis, politiques de confidentialité et de récupération contrôlées, et traçabilité des opérations locales. Cela ne constitue **pas** une certification d'encaissement des applications tierces sur un Redmi réel.
+
+### Historique réel sur 30 jours
+
+Les précédentes versions ne gardaient que les dernières valeurs de chaque application. La v1.0 ajoute un archiveur local qui enregistre chaque jour, au moment de son événement :
+
+- le résultat technique du relevé Santé Connect (`steps_read`, blocage, indisponibilité ou erreur générique) **sans stocker le nombre de pas dans l'archive** ;
+- le code de diagnostic d'une action de notification (signal compatible, non reconnu, ancien, ouvrant une interface, libellé ambigu, origine non vérifiée) ;
+- les actions directes effectivement envoyées, annulées, refusées ou dont le résultat reste inconnu ;
+- l'état de l'assistance Accessibilité et le fait qu'un clic sur un bouton de pas ait **été tenté** au moins une fois dans la journée ;
+- les déclarations personnelles « reçu » et « non reçu », sans jamais les présenter comme preuves certifiées du fournisseur.
+
+Les entrées sont enregistrées immédiatement sous la **date locale de l'événement**, même si les états actuels sont réinitialisés le lendemain. Le stockage se limite aux **30 dernières dates locales** avec suppression automatique des événements périmés. Seuls des codes internes sur liste blanche sont archivés : pas de mot de passe, solde, identifiant de compte, texte des notifications ni connexion Internet.
+
+Dans le tableau de bord, **Rapports précédents → Choisir un jour** ouvre un sélecteur de dates, puis un bilan détaillé et copiable. **Effacer archives** efface seulement ces nouveaux bilans après confirmation, sans désactiver les alarmes ou les autorisations. Les bilans avant l'installation de la v1.0 ne peuvent pas être reconstitués rétroactivement si les anciennes données avaient déjà été remplacées.
+
+### Publication et limites de la version stable
+
+- CI : `lintDebug`, `testDebugUnitTest`, `assembleDebug`, `assembleRelease`, vérification cryptographique de la signature de l'APK debug avec `apksigner`, empreinte SHA-256.
+- Artefact `validate-steps-debug` : **APK de test installable**, signé avec une clé de debug qui peut changer d'une exécution à l'autre. Les mises à jour d'APK exigent le **même certificat de signature**.
+- Artefact `validate-steps-release-signed` : créé **uniquement** si une clé privée de publication stable a été fournie dans les secrets protégés GitHub ; elle n'est jamais inscrite dans le code ou la documentation.
+- Une exécution manuelle du workflow peut exiger une version signée de production : elle **échoue volontairement** si les quatre secrets ne sont pas configurés, au lieu d'annoncer une fausse version prête à publier.
+- La version stable ne remplace pas une **recette réelle** sur le Redmi Android 15 : il faut vérifier le déclenchement nocturne, le fonctionnement après verrouillage/redémarrage et l'état de chacun des quatre partenaires.
+
+Voir [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) avant toute diffusion comme APK de production.
+
+### Contrat fonctionnel définitif de la v1.0
+
+| Fonction | Engagement |
+|---|---|
+| Pas réels Santé Connect | Lecture locale, jamais simulation ou doublon volontaire |
+| Relevé à 22 h | Alarme et secours, selon les autorisations et les contraintes d'Android |
+| « Tout valider » manuel | Tente uniquement les actions reconnues, puis assistance facultative autorisée |
+| Validation à 22 h sans écran | Seulement quand un fournisseur fournit une action directe de notification admissible |
+| Encaissement WeWard/Macadam/Winwalk | **Non garanti** sans confirmation dans les applications |
+| Sweatcoin | Synchronisation et crédit gérés par Sweatcoin |
+| Historique | 30 jours de codes locaux, et non de soldes ou de données sensibles |
+| Confidentialité | Pas de permission Internet, accès Android demandé explicitement |
+
+Aucun logiciel ne peut promettre une version « définitive » au sens d'impossible à corriger : de futurs changements d'Android, d'HyperOS ou des fournisseurs peuvent nécessiter des mises à jour.

@@ -15,8 +15,11 @@ public final class ActionBridgeState {
     // a read/check/write sequence atomic.
     private static final Object RESERVATION_LOCK = new Object();
     private final SharedPreferences prefs;
+    private final Context appContext;
     public ActionBridgeState(Context context) {
-        prefs = context.getSharedPreferences("notification_action_bridge", Context.MODE_PRIVATE);
+        appContext = context.getApplicationContext();
+        prefs = appContext.getSharedPreferences(
+            "notification_action_bridge", Context.MODE_PRIVATE);
     }
 
     public boolean enabled() { return prefs.getBoolean("enabled", false); }
@@ -66,17 +69,26 @@ public final class ActionBridgeState {
             if (alreadyAttempted(packageName, day)) return false;
             int tries = day.toString().equals(prefs.getString("date_" + packageName, ""))
                 ? prefs.getInt("attempts_" + packageName, 0) + 1 : 1;
-            return prefs.edit()
+            boolean committed = prefs.edit()
                 .putString("date_" + packageName, day.toString())
                 .putString("status_" + packageName, "dispatching")
                 .putInt("attempts_" + packageName, tries)
                 .commit();
+            if (committed)
+                new DailyHistoryStore(appContext).recordDirect(
+                    packageName, day, "dispatching");
+            return committed;
         }
     }
 
     public void record(String packageName, String status) {
         if (!ClaimActionPolicy.isProvider(packageName)) return;
-        prefs.edit().putString("status_" + packageName, status).commit();
+        String recordedDay = prefs.getString("date_" + packageName, "");
+        LocalDate day;
+        try { day = LocalDate.parse(recordedDay); }
+        catch (RuntimeException invalid) { return; }
+        if (prefs.edit().putString("status_" + packageName, status).commit())
+            new DailyHistoryStore(appContext).recordDirect(packageName, day, status);
     }
 
     /** Diagnostic metadata only; never persist text from a third-party notification. */
@@ -90,6 +102,8 @@ public final class ActionBridgeState {
         prefs.edit().putString("seen_" + packageName, day)
             .putString("category_" + packageName, strongest)
             .putLong("seen_at_" + packageName, System.currentTimeMillis()).apply();
+        new DailyHistoryStore(appContext).recordObservation(
+            packageName, LocalDate.now(), strongest);
     }
 
     public void inspected(boolean connected) {

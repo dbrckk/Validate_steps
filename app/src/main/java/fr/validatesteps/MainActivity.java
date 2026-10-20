@@ -3,6 +3,7 @@ package fr.validatesteps;
 import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
@@ -50,6 +51,8 @@ public final class MainActivity extends Activity {
     private TextView dailyReportText;
     private TextView stopGuideButton;
     private TextView timelineText;
+    private TextView historicalSummaryText;
+    private LocalDate selectedHistoryDate;
     private Switch scheduleSwitch;
     private Switch notificationSwitch;
     private boolean updating;
@@ -118,6 +121,8 @@ public final class MainActivity extends Activity {
         content.addView(providersSection);
         space(content, 22);
         dailyReportPanel();
+        space(content, 20);
+        historyPanel();
         space(content, 24);
         automation();
         space(content, 24);
@@ -169,7 +174,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.21", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v1.0", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
@@ -555,6 +560,97 @@ public final class MainActivity extends Activity {
         buttons.addView(update, b);
         card.addView(buttons);
         content.addView(card);
+    }
+
+    /**
+     * Lightweight archive overview. Detailed historic days open only on demand
+     * so a small Android display is not flooded by 30 verbose reports.
+     */
+    private void historyPanel() {
+        title(content, "RAPPORTS PRÉCÉDENTS",
+            "30 jours maximum · historiques locaux depuis la v1.0");
+        LinearLayout card = column();
+        card.setPadding(dp(16), dp(16), dp(16), dp(16));
+        card.setBackground(DashboardStyles.stroke(this, DashboardStyles.SURFACE,
+            0xff2b4661, 20, 1));
+
+        historicalSummaryText = label("", 12, DashboardStyles.TEXT, false);
+        historicalSummaryText.setLineSpacing(dp(4), 1f);
+        historicalSummaryText.setTextIsSelectable(true);
+        card.addView(historicalSummaryText);
+        space(card, 14);
+
+        LinearLayout buttons = row();
+        TextView choose = action("Choisir un jour",
+            DashboardStyles.SURFACE_RAISED, DashboardStyles.TEXT,
+            this::chooseHistoricalDay);
+        LinearLayout.LayoutParams first = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        first.rightMargin = dp(6);
+        buttons.addView(choose, first);
+
+        TextView clear = action("Effacer archives", 0xff3a2736,
+            DashboardStyles.TEXT, () -> new AlertDialog.Builder(this)
+                .setTitle("Effacer les bilans des 30 derniers jours ?")
+                .setMessage("Efface uniquement les archives locales créées " +
+                    "depuis la v1.0. Le bilan courant, les autorisations et " +
+                    "la programmation à 22 h restent inchangés.")
+                .setPositiveButton("Effacer", (d, w) -> {
+                    new DailyHistoryStore(this).clear();
+                    refresh();
+                    toast("Archives locales effacées");
+                })
+                .setNegativeButton("Annuler", null)
+                .show());
+        LinearLayout.LayoutParams second = new LinearLayout.LayoutParams(0, dp(50), 1f);
+        second.leftMargin = dp(6);
+        buttons.addView(clear, second);
+
+        card.addView(buttons);
+        content.addView(card);
+    }
+
+    private void chooseHistoricalDay() {
+        LocalDate now = LocalDate.now();
+        LocalDate selection = selectedHistoryDate == null ?
+            now.minusDays(1) : selectedHistoryDate;
+        DatePickerDialog picker = new DatePickerDialog(this,
+            (view, year, month, dayOfMonth) -> {
+                selectedHistoryDate = LocalDate.of(year, month + 1, dayOfMonth);
+                showHistoricalDay(selectedHistoryDate);
+            }, selection.getYear(), selection.getMonthValue() - 1,
+            selection.getDayOfMonth());
+        long min = now.minusDays(HistoryRecordPolicy.RETENTION_DAYS - 1)
+            .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        long max = now.plusDays(1)
+            .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli() - 1L;
+        picker.getDatePicker().setMinDate(min);
+        picker.getDatePicker().setMaxDate(max);
+        picker.show();
+    }
+
+    private void showHistoricalDay(LocalDate day) {
+        String report = new DailyHistoryStore(this).report(this, day);
+        TextView body = label(report, 13, DashboardStyles.TEXT, false);
+        body.setTextIsSelectable(true);
+        body.setLineSpacing(dp(4), 1f);
+        body.setPadding(dp(18), dp(12), dp(18), dp(16));
+        ScrollView scroll = new ScrollView(this);
+        scroll.addView(body);
+        new AlertDialog.Builder(this)
+            .setTitle("Bilan du " + day)
+            .setView(scroll)
+            .setPositiveButton("Copier le bilan", (d, w) -> {
+                ClipboardManager clipboard = getSystemService(ClipboardManager.class);
+                if (clipboard == null) {
+                    toast("Presse-papiers Android indisponible");
+                    return;
+                }
+                clipboard.setPrimaryClip(ClipData.newPlainText(
+                    "Validate Steps · " + day, report));
+                toast("Bilan du " + day + " copié");
+            })
+            .setNegativeButton("Fermer", null)
+            .show();
     }
 
     private void automation() {
@@ -1034,6 +1130,8 @@ public final class MainActivity extends Activity {
         }
         if (dailyReportText != null)
             dailyReportText.setText(DailyProviderReport.build(this, LocalDate.now()));
+        if (historicalSummaryText != null)
+            historicalSummaryText.setText(new DailyHistoryStore(this).recentSummary());
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
