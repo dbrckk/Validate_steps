@@ -464,21 +464,21 @@ public final class MainActivity extends Activity {
                         .setPositiveButton("Je confirme", (d, w) -> {
                             new ProviderCreditStore(this).report(pkg, LocalDate.now(),
                                 CreditEvidencePolicy.USER_REPORTED_RECEIVED);
-                            new NightTimeline(this).add(
-                                NightTimeline.Event.USER_CREDIT_REPORTED_RECEIVED, LocalDate.now());
+                            new NightTimeline(this).addProvider(
+                                NightTimeline.Event.USER_CREDIT_REPORTED_RECEIVED, LocalDate.now(), pkg);
                             refresh();
                         })
                         .setNegativeButton("Annuler", null).show();
                 } else if (which == 1) {
                     new ProviderCreditStore(this).report(pkg, LocalDate.now(),
                         CreditEvidencePolicy.USER_REPORTED_MISSING);
-                    new NightTimeline(this).add(
-                        NightTimeline.Event.USER_CREDIT_REPORTED_MISSING, LocalDate.now());
+                    new NightTimeline(this).addProvider(
+                        NightTimeline.Event.USER_CREDIT_REPORTED_MISSING, LocalDate.now(), pkg);
                     refresh();
                 } else if (which == 2) {
                     new ProviderCreditStore(this).clear(pkg);
-                    new NightTimeline(this).add(
-                        NightTimeline.Event.USER_CREDIT_REPORT_CLEARED, LocalDate.now());
+                    new NightTimeline(this).addProvider(
+                        NightTimeline.Event.USER_CREDIT_REPORT_CLEARED, LocalDate.now(), pkg);
                     refresh();
                 }
             }).setNegativeButton("Fermer", null).show();
