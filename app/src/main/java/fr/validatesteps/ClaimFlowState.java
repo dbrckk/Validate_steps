@@ -49,11 +49,17 @@ public final class ClaimFlowState {
     public void report(String pkg, String result, GuidedOutcome outcome) {
         if (!GuidedClaimPolicy.isTarget(pkg) || outcome == null) return;
         String today = java.time.LocalDate.now().toString();
-        prefs.edit().putString("result_" + pkg, result)
+        SharedPreferences.Editor edit = prefs.edit()
+            .putString("result_" + pkg, result)
             .putString("result_day_" + pkg, today)
             .putString("outcome_" + pkg, outcome.name())
             .putString("outcome_day_" + pkg, today)
-            .putString("summary", result).commit();
+            .putString("summary", result);
+        // A later interruption or rerun must not erase an earlier real click
+        // attempt from this date's report (nor claim it was credited).
+        if (outcome.clickAttempted())
+            edit.putString("click_attempted_day_" + pkg, today);
+        edit.commit();
     }
 
     /** Compatibility with older in-process callers: never invent a click. */
