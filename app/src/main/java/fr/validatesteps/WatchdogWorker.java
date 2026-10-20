@@ -83,6 +83,9 @@ public final class WatchdogWorker extends Worker {
             AuditWorker.enqueue(context, today);
             timeline.add(NightTimeline.Event.WATCHDOG_ENQUEUED, today);
         }
+        // Only the late evening backup can offer the optional status review.
+        // It NEVER tries Accessibility or asserts the provider paid anything.
+        AutonomousReviewReminder.maybeShow(context, scheduled, now);
         return Result.success();
     }
 }
