@@ -40,6 +40,15 @@ public final class ProviderCreditStore {
                 prefs.getString("status_" + packageName, CreditEvidencePolicy.UNKNOWN));
     }
 
+    /** Number of providers for which the user has checked and reported a credit today. */
+    public int userReportedReceivedCount(LocalDate day) {
+        int count = 0;
+        for (String packageName : GuidedClaimPolicy.ORDER) {
+            if (userReportedReceivedToday(packageName, day)) count++;
+        }
+        return count;
+    }
+
     public boolean clear(String packageName) {
         if (!GuidedClaimPolicy.isTarget(packageName)) return false;
         return prefs.edit()
