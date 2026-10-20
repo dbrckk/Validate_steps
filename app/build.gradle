@@ -17,7 +17,7 @@ android {
         minSdk 34
         targetSdk 35
         versionCode 19
-        versionName '0.18.0'
+        versionName '0.19.0'
     }
     signingConfigs {
         if (hasStableSigning) {
