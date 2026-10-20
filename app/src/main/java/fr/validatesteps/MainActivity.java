@@ -279,72 +279,72 @@ public final class MainActivity extends Activity {
     private void rebuildReadiness() {
         if (readinessSection == null) return;
         readinessSection.removeAllViews();
+        UnattendedModeController auto = new UnattendedModeController(this);
         RunStore run = new RunStore(this);
+        ActionBridgeState bridge = new ActionBridgeState(this);
         boolean health = HealthReader.backgroundSupported() &&
             checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
         boolean exact = DailyScheduler.exactAllowed(this);
         boolean scheduled = run.enabled();
         boolean access = RewardActionListener.hasPermission(this);
-        boolean listening = new ActionBridgeState(this).enabled();
+        boolean listening = access && bridge.enabled();
 
         LinearLayout first = row();
         readinessTile(first, "SANTÉ CONNECT", health,
-            health ? "Accès aux pas autorisé" : "Autorisation requise", () -> {
+            health ? "Lecture des pas autorisée" : "Permission de santé requise",
+            () -> {
                 if (!HealthReader.backgroundSupported()) {
-                    toast("Lecture en arrière-plan non disponible sur cette version Android");
+                    toast("Lecture Santé Connect en arrière-plan non prise en charge");
                 } else {
-                    requestPermissions(new String[]{
-                        HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND}, 10);
+                    requestPermissions(new String[] {
+                        HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND }, 10);
                 }
             }, true);
         readinessTile(first, "ALARME · 22 H", scheduled && exact,
-            !scheduled ? "À activer" : exact ? "Programmée" : "Horaire approximatif",
+            !scheduled ? "Mode automatique à activer" : exact
+                ? "Programmation active" : "Horaire approximatif",
             () -> {
                 if (!scheduled) {
-                    new RunStore(this).enable(true);
-                    DailyScheduler.schedule(this);
-                    DailyScheduler.scheduleRecovery(this, true);
-                    refresh();
-                    toast("Relevé quotidien à 22 h activé");
+                    enableUnattendedPrompt();
                 } else if (!exact) {
-                    Intent exactIntent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
-                    exactIntent.setData(Uri.parse("package:" + getPackageName()));
-                    startActivity(exactIntent);
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
                 } else {
-                    toast("Relevé à 22 h activé");
+                    toast("Relevé quotidien à 22 h programmé");
                 }
             }, false);
         readinessSection.addView(first);
 
         LinearLayout second = row();
-        readinessTile(second, "NOTIFICATIONS", access && listening,
-            !access ? "Accès Android requis" : listening ? "Actions actives" : "À activer",
+        readinessTile(second, "ACTIONS DIRECTES", listening,
+            !access ? "Accès notifications à autoriser" :
+                listening ? "Activées · si bouton compatible" :
+                "Mode automatique à activer",
             () -> {
-                if (!access) {
+                if (!auto.requested()) {
+                    enableUnattendedPrompt();
+                } else if (!access) {
                     startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
-                } else if (!listening) {
-                    notificationSwitch.setChecked(true);
                 } else {
+                    auto.reconcile();
                     RewardActionListener.diagnoseConnectedNow(this);
                     refresh();
-                    toast("Diagnostic des notifications actualisé");
                 }
             }, true);
-        readinessTile(second, "UN APPUI", GuidedClaimService.connected(),
-            GuidedClaimService.connected() ? "Assistance prête" : "Configuration requise",
+        readinessTile(second, "SANS ASSISTANCE", auto.requested(),
+            auto.requested()
+                ? "Aucun clic ou écran requis chaque jour"
+                : "Activation initiale requise",
             () -> {
-                if (!getPreferences(MODE_PRIVATE)
-                        .getBoolean("assistance_disclosed", false)) {
-                    discloseAccessibility();
-                } else {
-                    startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                }
+                if (!auto.requested()) enableUnattendedPrompt();
+                else toast("Mode autonome : aucune permission Accessibilité nécessaire");
             }, false);
-        LinearLayout.LayoutParams secondLp = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        secondLp.topMargin = dp(10);
-        readinessSection.addView(second, secondLp);
+        params.topMargin = dp(10);
+        readinessSection.addView(second, params);
     }
 
     private void readinessTile(LinearLayout parent, String name, boolean ready,
@@ -412,16 +412,11 @@ public final class MainActivity extends Activity {
             dp(93), dp(44)));
         card.addView(row);
 
-        String status;
-        if (ProviderPackages.SWEATCOIN.equals(pkg)) {
-            status = "Conversion propre à Sweatcoin · crédit non vérifié";
-        } else {
-            status = new ClaimFlowState(this).result(pkg);
-            // Distinct signals, with no false credit confirmation.
-            String notification = new ActionBridgeState(this).brief(pkg);
-            if (!"Aucune action observée".equals(notification))
-                status += "\n" + notification;
-        }
+        LocalDate today = LocalDate.now();
+        ActionBridgeState bridge = new ActionBridgeState(this);
+        String status = UnattendedModePolicy.providerState(pkg,
+            new UnattendedModeController(this).requested(),
+            bridge.observationOn(pkg, today), bridge.actionStatusOn(pkg, today));
         TextView detail = label(status, 12, DashboardStyles.MUTED, false);
         detail.setPadding(0, dp(14), 0, 0);
         detail.setLineSpacing(dp(3), 1f);
@@ -635,87 +630,39 @@ public final class MainActivity extends Activity {
     }
 
     private void automation() {
-        title(content, "AUTOMATISATION", "Deux méthodes complémentaires");
+        title(content, "AUTOMATISATION SANS ASSISTANCE",
+            "Une activation, puis exécution quotidienne selon Android");
         LinearLayout card = column();
-        card.setPadding(dp(17), dp(16), dp(17), dp(16));
+        card.setPadding(dp(17), dp(17), dp(17), dp(17));
         card.setBackground(DashboardStyles.round(this, DashboardStyles.SURFACE, 20));
 
-        LinearLayout auto = row();
-        LinearLayout titles = column();
-        titles.addView(label("Relevé quotidien à 22 h", 15, DashboardStyles.TEXT, true));
-        titles.addView(label("Alarme et secours à 22 h 20 / 23 h 15",
-            12, DashboardStyles.MUTED, false));
-        auto.addView(titles, new LinearLayout.LayoutParams(0,
-            ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        scheduleSwitch = new Switch(this);
-        scheduleSwitch.setThumbTintList(android.content.res.ColorStateList.valueOf(
-            DashboardStyles.ACCENT));
-        scheduleSwitch.setContentDescription("Activer le relevé automatique chaque jour à 22 heures");
-        scheduleSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (updating) return;
-            new RunStore(this).enable(checked);
-            if (!checked) new ActionBridgeState(this).enable(false);
-            DailyScheduler.schedule(this);
-            if (checked) DailyScheduler.scheduleRecovery(this, true);
-            refresh();
-        });
-        auto.addView(scheduleSwitch);
-        card.addView(auto);
-        space(card, 16);
-
-        View separator = new View(this);
-        separator.setBackgroundColor(0xff324155);
-        card.addView(separator, new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
-        space(card, 16);
-
-        LinearLayout notification = row();
-        LinearLayout ntexts = column();
-        ntexts.addView(label("Actions de notifications", 15, DashboardStyles.TEXT, true));
-        ntexts.addView(label("En arrière-plan si le service publie un bouton direct",
-            12, DashboardStyles.MUTED, false));
-        notification.addView(ntexts, new LinearLayout.LayoutParams(0,
-            ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        notificationSwitch = new Switch(this);
-        notificationSwitch.setThumbTintList(android.content.res.ColorStateList.valueOf(
-            DashboardStyles.ACCENT));
-        notificationSwitch.setContentDescription("Activer les actions directes de notifications en arrière-plan");
-        notificationSwitch.setOnCheckedChangeListener((button, checked) -> {
-            if (updating) return;
-            if (checked && !RewardActionListener.hasPermission(this)) {
-                notificationSwitch.setChecked(false);
-                new AlertDialog.Builder(this)
-                    .setTitle("Accès aux notifications")
-                    .setMessage("Android doit autoriser explicitement l'accès aux notifications. " +
-                        "Validate Steps ne stocke ni leur contenu ni les données de compte.")
-                    .setPositiveButton("Configurer", (d, w) ->
-                        startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
-                    .setNegativeButton("Plus tard", null).show();
-                return;
-            }
-            if (checked && !new RunStore(this).enabled()) {
-                new RunStore(this).enable(true);
-                DailyScheduler.schedule(this);
-                DailyScheduler.scheduleRecovery(this, true);
-                toast("Programmation quotidienne activée avec les actions directes");
-            }
-            new ActionBridgeState(this).enable(checked);
-            if (checked) {
-                RewardActionListener.ensureConnected(this);
-                RewardActionListener.inspectConnectedNow();
-            }
-            refresh();
-        });
-        notification.addView(notificationSwitch);
-        card.addView(notification);
-        content.addView(card);
-
-        TextView caution = label("L'automatisation nocturne ne peut pas forcer l'ouverture " +
-            "des applications à écran verrouillé. Elle utilise uniquement les " +
-            "actions de notification réellement disponibles.",
+        card.addView(label("22:00 · Relevé local des pas", 15, DashboardStyles.TEXT, true));
+        TextView steps = label(
+            "Alarme Android et contrôles de secours à 22 h 20 et 23 h 15. " +
+            "Pas d'ouverture d'application ni de clic sur écran verrouillé.",
             12, DashboardStyles.MUTED, false);
-        caution.setPadding(dp(8), dp(12), dp(8), 0);
-        content.addView(caution);
+        steps.setPadding(0, dp(7), 0, dp(15));
+        card.addView(steps);
+
+        card.addView(label("22:00–23:40 · Commandes directes", 15,
+            DashboardStyles.TEXT, true));
+        TextView direct = label(
+            "Si WeWard, Macadam ou Winwalk publie une vraie action Android " +
+            "de validation de pas, elle peut être envoyée sans intervention. " +
+            "Sans cette action, le crédit automatique n'est pas possible.",
+            12, DashboardStyles.MUTED, false);
+        direct.setPadding(0, dp(7), 0, dp(15));
+        card.addView(direct);
+
+        card.addView(label("Sweatcoin · Conversion par son application", 15,
+            DashboardStyles.TEXT, true));
+        TextView sweat = label(
+            "Sweatcoin traite ses pas indépendamment. Validate Steps ne peut " +
+            "pas vérifier ses crédits ou maintenir de force son processus Android.",
+            12, DashboardStyles.MUTED, false);
+        sweat.setPadding(0, dp(7), 0, 0);
+        card.addView(sweat);
+        content.addView(card);
     }
 
     private void settings() {
