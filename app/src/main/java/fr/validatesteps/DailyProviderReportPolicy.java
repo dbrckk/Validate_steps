@@ -24,20 +24,30 @@ public final class DailyProviderReportPolicy {
         public final String observation;
         public final GuidedOutcome guided;
         public final String credit;
+        public final boolean clickAttemptedToday;
 
         public Entry(String name, boolean installed, String direct,
                 GuidedOutcome guided, String credit) {
-            this(name, installed, direct, "", guided, credit);
+            this(name, installed, direct, "", guided, credit,
+                guided != null && guided.clickAttempted());
         }
 
         public Entry(String name, boolean installed, String direct,
                 String observation, GuidedOutcome guided, String credit) {
+            this(name, installed, direct, observation, guided, credit,
+                guided != null && guided.clickAttempted());
+        }
+
+        public Entry(String name, boolean installed, String direct,
+                String observation, GuidedOutcome guided, String credit,
+                boolean clickAttemptedToday) {
             this.name = name;
             this.installed = installed;
             this.direct = direct;
             this.observation = observation;
             this.guided = guided == null ? GuidedOutcome.NONE : guided;
             this.credit = credit;
+            this.clickAttemptedToday = clickAttemptedToday;
         }
     }
 
@@ -114,7 +124,7 @@ public final class DailyProviderReportPolicy {
             if (CreditEvidencePolicy.USER_REPORTED_MISSING.equals(item.credit))
                 declaredMissing++;
             if (directSent(item.direct)) sent++;
-            if (item.guided.clickAttempted()) clicked++;
+            if (item.clickAttemptedToday) clicked++;
         }
 
         StringBuilder result = new StringBuilder(900);
@@ -134,8 +144,10 @@ public final class DailyProviderReportPolicy {
                 .append(item.installed ? " · installée" : " · non installée")
                 .append("\n  Signal détecté : ").append(observationDescription(item.observation))
                 .append("\n  Commande directe : ").append(directDescription(item.direct))
-                .append("\n  Assistance : ").append(item.guided.description())
-                .append("\n  Récompenses : ").append(creditDescription(item.credit));
+                .append("\n  Assistance : ").append(item.guided.description());
+            if (item.clickAttemptedToday && !item.guided.clickAttempted())
+                result.append(" ; un clic avait aussi été tenté plus tôt aujourd'hui");
+            result.append("\n  Récompenses : ").append(creditDescription(item.credit));
         }
 
         return result.append(
