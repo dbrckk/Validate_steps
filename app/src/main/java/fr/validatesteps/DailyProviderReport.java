@@ -32,6 +32,7 @@ public final class DailyProviderReport {
             name,
             ProviderPackages.installed(context, packageName),
             direct.actionStatusOn(packageName, day),
+            direct.observationOn(packageName, day),
             guided.outcomeOn(packageName, day),
             credits.statusOn(packageName, day));
     }
