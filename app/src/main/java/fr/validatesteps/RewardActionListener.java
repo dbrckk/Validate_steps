@@ -171,7 +171,8 @@ public final class RewardActionListener extends NotificationListenerService {
 
             if (!"action_directe_compatible".equals(diagnostic)) continue;
             store.noteSeen(packageName, diagnostic);
-            if (!allowDispatch || store.alreadyAttempted(packageName, day))
+            if (!allowDispatch || store.alreadyAttempted(packageName, day) ||
+                    new ProviderCreditStore(this).userReportedReceivedToday(packageName, day))
                 return false;
             if (!onDemand && (!new RunStore(this).enabled() ||
                     !store.enabled() || !ClaimActionPolicy.inTimeWindow(ZonedDateTime.now())))
