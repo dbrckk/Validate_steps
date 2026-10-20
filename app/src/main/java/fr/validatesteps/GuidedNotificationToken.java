@@ -36,7 +36,7 @@ public final class GuidedNotificationToken {
     }
 
     public static boolean consume(Context context, String candidate) {
-        if (candidate == null || candidate.isEmpty()) return false;
+        if (!NotificationNoncePolicy.validFormat(candidate)) return false;
         synchronized (LOCK) {
             SharedPreferences p = context.getSharedPreferences(STORE, Context.MODE_PRIVATE);
             String nonce = p.getString("nonce", "");
@@ -45,7 +45,7 @@ public final class GuidedNotificationToken {
             LocalDate date;
             try { date = LocalDate.parse(p.getString("day", "")); }
             catch (RuntimeException badStoredDate) { return false; }
-            boolean valid = !nonce.isEmpty()
+            boolean valid = NotificationNoncePolicy.validFormat(nonce)
                 && NotificationActionWindow.canStart(
                     date, ZonedDateTime.now(), elapsed)
                 && MessageDigest.isEqual(
