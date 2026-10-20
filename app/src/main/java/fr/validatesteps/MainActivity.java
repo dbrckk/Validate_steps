@@ -692,8 +692,6 @@ public final class MainActivity extends Activity {
         });
         setting("Accès aux notifications", "Boutons directs proposés par les services",
             () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        setting("Assistance à un appui", "Autorisation Android d'interagir avec les boutons visibles",
-            this::discloseAccessibility);
         setting("Notifications système", "Recevoir les informations de suivi",
             () -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11));
         setting("Paramètres de l'application", "Batterie, autorisations, restrictions HyperOS",
@@ -708,10 +706,7 @@ public final class MainActivity extends Activity {
                 .setMessage("Les alarmes seront annulées. Les crédits déjà acquis " +
                     "dans les applications ne seront pas modifiés.")
                 .setPositiveButton("Arrêter", (d, w) -> {
-                    new RunStore(this).enable(false);
-                    new ActionBridgeState(this).enable(false);
-                    GuidedClaimService.cancel(this);
-                    DailyScheduler.schedule(this);
+                    new UnattendedModeController(this).disable();
                     refresh();
                 }).setNegativeButton("Annuler", null).show());
         content.addView(settingsContent);
@@ -772,123 +767,75 @@ public final class MainActivity extends Activity {
         content.addView(panel);
     }
 
-    private void onClaimAll() {
-        if (new ClaimFlowState(this).active()) {
-            toast("Un parcours de validation est déjà en cours");
-            return;
-        }
-        // An early claim can lock today's tally before all steps are earned.
-        // Require an explicit choice rather than silently spending the claim.
-        if (ClaimTimingPolicy.risksPartialDayClaim(LocalTime.now())) {
-            new AlertDialog.Builder(this)
-                .setTitle("Valider les pas avant 22 h ?")
-                .setMessage("Certaines applications ne permettent qu'une validation " +
-                    "par jour. Une validation maintenant pourrait ne pas " +
-                    "inclure les pas que tu feras plus tard.\n\n" +
-                    "Tu peux continuer immédiatement ou programmer le relevé " +
-                    "de 22 h (les crédits des partenaires restent non garantis).")
-                .setPositiveButton("Valider maintenant", (d, w) -> executeClaimAll())
-                .setNeutralButton("Programmer 22 h", (d, w) -> {
-                    new RunStore(this).enable(true);
-                    DailyScheduler.schedule(this);
-                    DailyScheduler.scheduleRecovery(this, true);
-                    refresh();
-                    toast("Relevé programmé à 22 h · active aussi les actions de notifications");
-                })
-                .setNegativeButton("Annuler", null)
-                .show();
-            return;
-        }
-        executeClaimAll();
-    }
-
-    private void executeClaimAll() {
-        if (new ClaimFlowState(this).active()) {
-            toast("Un parcours de validation est déjà en cours");
-            return;
-        }
-        // First, attempt provider-created background notification actions.
-        // A direct action needs a real user gesture here, not a 22:00 alarm,
-        // and stays subject to the same exact step-label and origin checks.
-        int direct = RewardActionListener.claimDirectNowFromUserTap(this);
-        lastDirectActions = direct;
-        refresh();
-
-        // With optional Accessibility consent, guide the remaining providers.
-        // The guided service skips any direct action just sent today.
-        boolean consent = getPreferences(MODE_PRIVATE)
-            .getBoolean("assistance_disclosed", false);
-        if (consent && GuidedClaimService.connected()) {
-            if (GuidedClaimService.begin(this)) {
-                toast(direct > 0
-                    ? direct + " action(s) directe(s) envoyée(s), parcours complémentaire lancé"
-                    : "Parcours assisté lancé · boutons des pas uniquement");
-            } else {
-                toast("Impossible de démarrer le parcours assisté");
-            }
-            return;
-        }
-
-        if (direct > 0) {
-            new AlertDialog.Builder(this)
-                .setTitle("Actions de pas envoyées")
-                .setMessage(direct + " commande(s) directe(s) transmise(s) aux " +
-                    "applications via leurs notifications. Cela ne confirme pas " +
-                    "le crédit des récompenses. Pour les autres services, " +
-                    "l'assistance facultative peut ouvrir les applications " +
-                    "et tenter leurs boutons visibles.")
-                .setPositiveButton("Configurer l'assistance", (d, w) -> {
-                    if (consent) startActivity(new Intent(
-                        Settings.ACTION_ACCESSIBILITY_SETTINGS));
-                    else discloseAccessibility();
-                })
-                .setNegativeButton("Terminer", null)
-                .show();
-            return;
-        }
-
-        if (!consent) {
-            discloseAccessibility();
-            return;
-        }
-
+    /**
+     * One explicit setup gesture, then no further button presses are required
+     * for the functions that Android and the providers actually permit.
+     * No Accessibility request or third-party UI automation exists in v1.1.
+     */
+    private void enableUnattendedPrompt() {
         new AlertDialog.Builder(this)
-            .setTitle("Parcours assisté indisponible")
-            .setMessage(direct < 0
-                ? "Le service de notifications n'est pas disponible, et " +
-                    "l'assistance Accessibilité est désactivée. Configure " +
-                    "l'accès Android pour utiliser le bouton Tout valider."
-                : "Aucun bouton de pas direct n'a été trouvé dans les " +
-                    "notifications. Active l'assistance facultative pour " +
-                    "rechercher les boutons dans les applications.")
-            .setPositiveButton("Régler Accessibilité", (d, w) ->
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)))
-            .setNeutralButton("Accès aux notifications", (d, w) ->
-                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
+            .setTitle("Activer l'automatisation sans appui ?")
+            .setMessage("Validate Steps relèvera les pas à 22 h et cherchera, " +
+                "dans les notifications des applications autorisées, des " +
+                "commandes DIRECTES de validation.\n\n" +
+                "L'accès aux notifications est sensible : Android demande " +
+                "ton autorisation dans ses paramètres. Les contenus et " +
+                "identifiants ne sont pas enregistrés.\n\n" +
+                "WeWard et Macadam exigent normalement une validation " +
+                "dans leur application. Si aucune commande directe n'existe, " +
+                "ce mode ne peut pas créditer leurs récompenses. " +
+                "Aucune interaction Accessibilité ni ouverture automatique " +
+                "d'application n'est effectuée.")
+            .setPositiveButton("Activer sans appui", (dialog, choice) ->
+                startUnattended())
             .setNegativeButton("Annuler", null)
             .show();
     }
 
-    private void discloseAccessibility() {
-        new AlertDialog.Builder(this)
-            .setTitle("Assistance à un appui — consentement")
-            .setMessage("Cette fonction facultative ouvre WeWard, Macadam, Winwalk " +
-                "et Sweatcoin à l'écran après ton appui. Avec l'autorisation " +
-                "Accessibilité, elle peut LIRE les libellés des boutons visibles " +
-                "des trois premiers services et CLIQUER uniquement sur un bouton " +
-                "de validation de pas explicitement reconnu. Elle ne lit pas les " +
-                "autres applications, n'enregistre pas les textes ni ne transmet " +
-                "de données. Elle n'interagit jamais avec les publicités, mots " +
-                "de passe ou opérations financières. Les clics peuvent être " +
-                "refusés par les fournisseurs ; aucun crédit n'est garanti. " +
-                "Tu peux désactiver le service dans Android à tout moment.")
-            .setPositiveButton("J'accepte · Configurer", (dialog, choice) -> {
-                getPreferences(MODE_PRIVATE).edit()
-                    .putBoolean("assistance_disclosed", true).apply();
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            })
-            .setNegativeButton("Refuser", null)
-            .show();
+    private void startUnattended() {
+        UnattendedModeController controller = new UnattendedModeController(this);
+        controller.enable();
+        refresh();
+        if (!RewardActionListener.hasPermission(this)) {
+            new AlertDialog.Builder(this)
+                .setTitle("Autoriser les actions directes de notifications")
+                .setMessage("Autorise Validate Steps dans l'accès aux notifications " +
+                    "d'Android. C'est nécessaire pour rechercher automatiquement " +
+                    "les rares commandes de validation éventuellement exposées " +
+                    "par les fournisseurs. En revenant ici, le mode les activera " +
+                    "sans autre appui quotidien.")
+                .setPositiveButton("Paramètres Android", (dialog, which) ->
+                    startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)))
+                .setNegativeButton("Plus tard", null)
+                .show();
+            return;
+        }
+        boolean healthGranted = HealthReader.backgroundSupported() &&
+            checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
+        if (!healthGranted) {
+            if (HealthReader.backgroundSupported())
+                requestPermissions(new String[]{
+                    HealthReader.READ_STEPS, HealthReader.READ_BACKGROUND}, 10);
+            else toast("Santé Connect en arrière-plan non pris en charge");
+            return;
+        }
+        if (!DailyScheduler.exactAllowed(this)) {
+            new AlertDialog.Builder(this)
+                .setTitle("Alarme exacte non autorisée")
+                .setMessage("Le relevé est programmé, mais Android peut " +
+                    "le retarder. Autoriser l'alarme exacte améliore " +
+                    "la ponctualité du relevé à 22 h.")
+                .setPositiveButton("Configurer", (d, w) -> {
+                    Intent intent = new Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM);
+                    intent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                })
+                .setNegativeButton("Plus tard", null)
+                .show();
+            return;
+        }
+        toast("Mode sans appui activé · relevé quotidien à 22 h");
     }
 
     private void openProvider(String pkg) {
@@ -979,6 +926,7 @@ public final class MainActivity extends Activity {
         super.onResume();
         if (content != null) {
             updateDisplayedDay();
+            new UnattendedModeController(this).reconcile();
             maybeRecoverNightlyAfterPermissionGrant();
             refresh();
             fetchSteps(false);
@@ -1031,10 +979,7 @@ public final class MainActivity extends Activity {
         if (content == null) return;
         RunStore run = new RunStore(this);
         ActionBridgeState action = new ActionBridgeState(this);
-        updating = true;
-        if (scheduleSwitch != null) scheduleSwitch.setChecked(run.enabled());
-        if (notificationSwitch != null) notificationSwitch.setChecked(action.enabled());
-        updating = false;
+        UnattendedModeController auto = new UnattendedModeController(this);
         boolean healthReady = HealthReader.backgroundSupported() &&
             checkSelfPermission(HealthReader.READ_STEPS) == PackageManager.PERMISSION_GRANTED &&
             checkSelfPermission(HealthReader.READ_BACKGROUND) == PackageManager.PERMISSION_GRANTED;
@@ -1063,14 +1008,17 @@ public final class MainActivity extends Activity {
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
-            + "\nGUIDED : interaction assistée · aucun crédit confirmé");
-        if (stopGuideButton != null) stopGuideButton.setVisibility(
-            new ClaimFlowState(this).active() ? View.VISIBLE : View.GONE);
-        if (subtitle != null) subtitle.setText(
-            new ClaimFlowState(this).active()
-                ? new ClaimFlowState(this).summary()
-                : lastDirectActions > 0
-                    ? lastDirectActions + " action(s) envoyée(s) · crédits non confirmés"
-                    : "Un appui : actions directes, puis parcours assisté si autorisé");
+            + "\nAucune assistance Accessibilité dans le mode sans appui");
+        if (stopAutomationButton != null) stopAutomationButton.setVisibility(
+            run.enabled() || auto.requested() ? View.VISIBLE : View.GONE);
+        if (autoModeButton != null) autoModeButton.setText(auto.requested()
+            ? "●   MODE SANS APPUI · ACTIVÉ" : "●   ACTIVER LE MODE SANS APPUI");
+        if (subtitle != null) subtitle.setText(!auto.requested()
+            ? "Active une seule fois le relevé autonome de 22 h"
+            : !RewardActionListener.hasPermission(this)
+                ? "Pas d'accès aux notifications : commandes directes indisponibles"
+                : !action.enabled()
+                    ? "Commandes directes non activées · autorisations à vérifier"
+                    : "22 h automatique · commandes envoyées si disponibles · crédits non confirmés");
     }
 }
