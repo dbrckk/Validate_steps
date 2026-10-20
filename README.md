@@ -1,4 +1,4 @@
-# Validate Steps v1.0.0 — relevé Android stable à 22 h
+# Validate Steps v1.1.0 — actions directes sans assistance à 22 h
 
 Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et proposer une assistance facultative pour les applications de récompenses. Le code est compilé et contrôlé dans GitHub Actions. **Aucun mécanisme autorisé ne garantit le crédit automatique de tous les fournisseurs.**
 
@@ -500,7 +500,7 @@ Voir [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) avant toute diffusion comme AP
 |---|---|
 | Pas réels Santé Connect | Lecture locale, jamais simulation ou doublon volontaire |
 | Relevé à 22 h | Alarme et secours, selon les autorisations et les contraintes d'Android |
-| « Tout valider » manuel | Tente uniquement les actions reconnues, puis assistance facultative autorisée |
+| Bouton direct manuel | Tente les actions de notifications reconnues, **sans jamais lancer Accessibilité** |
 | Validation à 22 h sans écran | Seulement quand un fournisseur fournit une action directe de notification admissible |
 | Encaissement WeWard/Macadam/Winwalk | **Non garanti** sans confirmation dans les applications |
 | Sweatcoin | Synchronisation et crédit gérés par Sweatcoin |
@@ -508,3 +508,25 @@ Voir [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md) avant toute diffusion comme AP
 | Confidentialité | Pas de permission Internet, accès Android demandé explicitement |
 
 Aucun logiciel ne peut promettre une version « définitive » au sens d'impossible à corriger : de futurs changements d'Android, d'HyperOS ou des fournisseurs peuvent nécessiter des mises à jour.
+
+
+## v1.1 — Mode « Sans assistance » à 22 h
+
+L'écran principal et le raccourci de la notification Android **n'ouvrent plus le parcours Accessibilité**. Le nouveau bouton **« Activer le mode 22 h · sans assistance »** active, après autorisation explicite de l'accès Android aux notifications, l'alarme quotidienne, les deux secours WorkManager et l'envoi des **actions directes** que WeWard, Macadam ou Winwalk publient réellement sous forme de `Notification.Action` admissible.
+
+- **Préparation initiale :** accorder l'accès Santé Connect pour le relevé des pas, les alarmes exactes pour la ponctualité et **l'accès aux notifications** pour les boutons directs. Android accorde un accès sensible aux notifications ; Validate Steps ne conserve que des codes locaux et filtre strictement les trois packages concernés.
+- **Chaque jour :** tentative à 22 h, nouvelle inspection des notifications connectées, secours à 22 h 20 et 23 h 15. Pas besoin d'ouvrir Validate Steps ni d'activer Accessibilité, tant qu'Android autorise les services à fonctionner.
+- **Manuellement :** « Essayer sans assistance » tente uniquement les boutons de notification exposés et clairement liés aux pas, même en dehors de 22 h après avertissement avant l'heure. Il ne lance **aucun clic de service Accessibilité**, vidéo récompensée, connexion de compte ou action sur écran caché.
+- **Suivi honnête :** les cartes WeWard, Macadam, Winwalk et Sweatcoin montrent séparément les commandes envoyées, les actions de notification non compatibles, les absences d'observation, les déclarations de crédit et les restrictions connues. Aucun `PendingIntent` envoyé n'est considéré comme preuve de gain.
+- L'ancien parcours **assisté** reste volontairement accessible uniquement depuis les paramètres avancés pour ceux qui souhaitent l'utiliser ; il n'est requis ni pour le mode nocturne ni pour le bouton direct.
+
+### Limitation incontournable des fournisseurs
+
+**Cette version ne peut pas garantir de crédit automatique chez WeWard, Macadam et Winwalk.** Leurs mécanismes appartiennent à leurs applications : WeWard requiert de l'ouvrir et d'appuyer sur « Valider mes pas » ; Macadam requiert une validation manuelle avant minuit ; Winwalk offre une collecte automatique après activation d'une vidéo quotidienne dans sa propre application. Aucun `PendingIntent` utilisable pour créditer leurs comptes n'a encore été confirmé sur l'appareil réel. Sweatcoin gère sa conversion séparément.
+
+**Sources :**
+- https://faq.weward.fr/hc/fr/articles/28122448171794-Valider-mes-pas-et-obtenir-des-r%C3%A9compenses
+- https://help.macadam.app/fr/articles/264329-qu-est-ce-que-l-application-macadam
+- https://play.google.com/store/apps/details?id=com.winwalk.android
+
+Les validations qui ne sont pas exposées comme actions Android directes restent donc à effectuer **dans les applications elles-mêmes**. Ce n'est pas une limitation qu'une programmation d'alarme ou une simple lecture Santé Connect peut supprimer.
