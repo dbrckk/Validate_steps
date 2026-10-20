@@ -9,6 +9,11 @@ import java.time.LocalDate;
  * classification codes and dates. No notification message text or account tokens.
  */
 public final class ActionBridgeState {
+    // A synchronized reservation is essential if Android delivers notification
+    // callbacks and a manual "Tout valider" request in close succession.
+    // One process owns this ledger; SharedPreferences alone does not make
+    // a read/check/write sequence atomic.
+    private static final Object RESERVATION_LOCK = new Object();
     private final SharedPreferences prefs;
     public ActionBridgeState(Context context) {
         prefs = context.getSharedPreferences("notification_action_bridge", Context.MODE_PRIVATE);
@@ -40,15 +45,17 @@ public final class ActionBridgeState {
 
     /** A claimed dispatch is reserved before sending to prevent double execution. */
     public boolean reserve(String packageName, LocalDate day) {
-        if (!ClaimActionPolicy.isProvider(packageName) ||
-            alreadyAttempted(packageName, day)) return false;
-        int tries = day.toString().equals(prefs.getString("date_" + packageName, ""))
-            ? prefs.getInt("attempts_" + packageName, 0) + 1 : 1;
-        return prefs.edit()
-            .putString("date_" + packageName, day.toString())
-            .putString("status_" + packageName, "dispatching")
-            .putInt("attempts_" + packageName, tries)
-            .commit();
+        if (!ClaimActionPolicy.isProvider(packageName) || day == null) return false;
+        synchronized (RESERVATION_LOCK) {
+            if (alreadyAttempted(packageName, day)) return false;
+            int tries = day.toString().equals(prefs.getString("date_" + packageName, ""))
+                ? prefs.getInt("attempts_" + packageName, 0) + 1 : 1;
+            return prefs.edit()
+                .putString("date_" + packageName, day.toString())
+                .putString("status_" + packageName, "dispatching")
+                .putInt("attempts_" + packageName, tries)
+                .commit();
+        }
     }
 
     public void record(String packageName, String status) {

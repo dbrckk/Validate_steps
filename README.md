@@ -1,4 +1,4 @@
-# Validate Steps (v0.19) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.20) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -419,3 +419,21 @@ Cette version complète les **15 piliers qualité** de la v0.18 avec deux correc
 Ces corrections ciblent les piliers fiabilité, précision, gestion des erreurs, anti-doublons, performances, batterie, sécurité, confidentialité et tests. Les autres piliers déjà traités en v0.18 sont conservés.
 
 **Limite :** les tests de logique et le build Android ne prouvent pas que les fournisseurs créditent des récompenses. Une action Android envoyée reste un essai, et les déclarations de crédits sont uniquement celles de l'utilisateur après consultation de chaque application.
+
+
+## v0.20 — Blocage des notifications causées par une alarme Android périmée
+
+Android peut retarder les alarmes ou WorkManager à cause de Doze et des politiques d'économie d'énergie du fabricant. Un secours daté d'hier peut donc être livré à une heure où **les actions de récompense d'aujourd'hui sont admissibles** (22 h à 23 h 40). Auparavant, les anciens récepteurs rétablissaient/inspectaient l'accès aux notifications **avant** de contrôler la date réellement programmée.
+
+La v0.20 corrige cette distinction :
+
+- Nouvelle règle testée `ScheduledActionPolicy` : une inspection **déclenchée par un travail planifié** exige que la date du déclencheur soit exactement celle du jour local actuel, que la planification soit activée et que l'heure soit dans la fenêtre 22:00–23:40.
+- `NightlyReceiver` et `WatchdogWorker` appliquent cette règle **avant de reconnecter le service Android ou d'inspecter les notifications**.
+- Si un travail ancien se réveille en retard, le journal enregistre `SCHEDULED_ACTION_IGNORED` et le planning du lendemain est quand même réarmé si l'automatisation reste activée.
+- Une ancienne **lecture des pas** peut toujours garder sa propre date dans la file WorkManager selon les règles existantes, sans déclencher pour autant des commandes de récompense pour le mauvais jour.
+- Le mécanisme `ActionBridgeState.reserve()` protège maintenant la lecture/vérification/écriture de réservation par un verrou commun. Deux appels Android presque simultanés ne peuvent plus tous deux réserver la même action dans le processus.
+- Tests unitaires : 22 h exactement, 23 h 39, fin exclusive à 23 h 40, alarmes d'hier/de demain, rediffusions après minuit, autorisation désactivée, données nulles.
+
+**À distinguer :** les actions directes lancées volontairement par le bouton « Tout valider » conservent leur logique indépendante de l'heure ; les notifications nouvelles réellement émises par un fournisseur conservent le contrôle de consentement et la fenêtre nocturne. Aucun mécanisme d'Accessibilité n'est exécuté sans geste utilisateur, aucune pièce n'est déclarée créditée sur la seule base d'un `PendingIntent`.
+
+Documentation Android sur les retards : https://developer.android.com/training/monitoring-device-state/doze-standby et https://developer.android.com/develop/background-work/services/alarms.

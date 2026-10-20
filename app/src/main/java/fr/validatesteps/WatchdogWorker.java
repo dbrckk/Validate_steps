@@ -57,21 +57,28 @@ public final class WatchdogWorker extends Worker {
     @NonNull @Override public Result doWork() {
         Context context = getApplicationContext();
         RunStore store = new RunStore(context);
-        LocalDate today = LocalDate.now();
+        ZonedDateTime now = ZonedDateTime.now();
+        LocalDate today = now.toLocalDate();
         LocalDate scheduled = AuditDay.resolve(getInputData().getString(DAY), today);
         NightTimeline timeline = new NightTimeline(context);
         timeline.add(NightTimeline.Event.WATCHDOG_RECEIVED, scheduled);
         // Re-arm tomorrow even if the 22:00 AlarmManager broadcast was dropped.
         // The next two fallbacks are scheduled once for that future date.
         if (store.enabled()) DailyScheduler.schedule(context);
-        RewardActionListener.ensureConnected(context);
-        RewardActionListener.inspectConnectedNow();
+        // Crucial: a stale fallback must not even reconnect the listener.
+        // onListenerConnected itself scans notifications when opted in.
+        if (ScheduledActionPolicy.canInspect(scheduled, now, store.enabled())) {
+            RewardActionListener.ensureConnected(context);
+            RewardActionListener.inspectConnectedNow();
+        } else {
+            timeline.add(NightTimeline.Event.SCHEDULED_ACTION_IGNORED, scheduled);
+        }
         // A delayed fallback must never attribute yesterday's steps to today.
         if (scheduled == null || !scheduled.equals(today)) {
             timeline.add(NightTimeline.Event.WATCHDOG_IGNORED, scheduled);
             return Result.success();
         }
-        if (CatchupPolicy.shouldAttempt(ZonedDateTime.now(), store.enabled(),
+        if (CatchupPolicy.shouldAttempt(now, store.enabled(),
                 store.successfulOn(today), store.permanentlyUnavailableOn(today))) {
             AuditWorker.enqueue(context, today);
             timeline.add(NightTimeline.Event.WATCHDOG_ENQUEUED, today);
