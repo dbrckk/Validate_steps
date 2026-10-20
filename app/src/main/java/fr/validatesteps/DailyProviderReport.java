@@ -34,6 +34,7 @@ public final class DailyProviderReport {
             direct.actionStatusOn(packageName, day),
             direct.observationOn(packageName, day),
             guided.outcomeOn(packageName, day),
-            credits.statusOn(packageName, day));
+            credits.statusOn(packageName, day),
+            guided.clickAttemptedOn(packageName, day));
     }
 }
