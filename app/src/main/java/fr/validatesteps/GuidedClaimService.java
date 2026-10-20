@@ -143,8 +143,10 @@ public final class GuidedClaimService extends AccessibilityService {
         if (sourcePackage != null && !pkg.contentEquals(sourcePackage)) return null;
         CharSequence txt = node.getText();
         CharSequence desc = node.getContentDescription();
-        if ((txt != null && GuidedClaimPolicy.canClick(pkg, txt.toString())) ||
-            (desc != null && GuidedClaimPolicy.canClick(pkg, desc.toString()))) {
+        if ((StepLabelNormalizer.reasonableLength(txt)
+                && GuidedClaimPolicy.canClick(pkg, txt.toString())) ||
+            (StepLabelNormalizer.reasonableLength(desc)
+                && GuidedClaimPolicy.canClick(pkg, desc.toString()))) {
             AccessibilityNodeInfo clickable = node;
             for (int i = 0;
                     i <= GuidedClickSafetyPolicy.MAX_PARENT_HOPS && clickable != null; i++) {
