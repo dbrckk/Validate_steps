@@ -10,9 +10,11 @@ import android.content.SharedPreferences;
 public final class ClaimFlowState {
     private static final long MAX_AGE_MS = 120_000L;
     private final SharedPreferences prefs;
+    private final Context appContext;
 
     public ClaimFlowState(Context context) {
-        prefs = context.getSharedPreferences("guided_claim_flow", Context.MODE_PRIVATE);
+        appContext = context.getApplicationContext();
+        prefs = appContext.getSharedPreferences("guided_claim_flow", Context.MODE_PRIVATE);
     }
 
     public void start() {
@@ -59,7 +61,9 @@ public final class ClaimFlowState {
         // attempt from this date's report (nor claim it was credited).
         if (outcome.clickAttempted())
             edit.putString("click_attempted_day_" + pkg, today);
-        edit.commit();
+        if (edit.commit())
+            new DailyHistoryStore(appContext).recordGuided(
+                pkg, java.time.LocalDate.parse(today), outcome);
     }
 
     /** Compatibility with older in-process callers: never invent a click. */
