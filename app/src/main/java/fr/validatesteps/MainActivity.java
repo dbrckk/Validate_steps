@@ -50,7 +50,6 @@ public final class MainActivity extends Activity {
     private TextView autonomousSummary;
     private TextView creditSummary;
     private TextView dailyReportText;
-    private TextView stopGuideButton;
     private TextView timelineText;
     private TextView historicalSummaryText;
     private LocalDate selectedHistoryDate;
@@ -68,33 +67,11 @@ public final class MainActivity extends Activity {
         getWindow().setNavigationBarColor(DashboardStyles.BG);
         getWindow().getDecorView().setSystemUiVisibility(0);
         render();
-        handleNotificationIntent(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        handleNotificationIntent(intent);
-    }
-
-    private void handleNotificationIntent(Intent intent) {
-        if (intent == null) return;
-        String token;
-        try {
-            if (!intent.hasExtra(GuidedNotificationToken.EXTRA)) return;
-            token = intent.getStringExtra(GuidedNotificationToken.EXTRA);
-            // Remove extras from this exported Activity's Intent to block replay.
-            intent.removeExtra(GuidedNotificationToken.EXTRA);
-        } catch (RuntimeException malformedExternalIntent) {
-            // Never crash on malicious/malformed Parcelable extras from another app.
-            return;
-        }
-        if (!GuidedNotificationToken.consume(this, token)) {
-            toast("Ce bouton a expiré. Lance le parcours depuis le tableau de bord.");
-            return;
-        }
-        // User tapped the notification; consent and system permission are still mandatory.
-        onClaimAll();
     }
 
     private void render() {
@@ -132,8 +109,9 @@ public final class MainActivity extends Activity {
         space(content, 26);
         timeline();
         space(content, 22);
-        TextView foot = label("Aucun crédit n'est déclaré confirmé sans preuve du fournisseur. " +
-            "L'assistance à un appui ouvre les applications et peut nécessiter une validation manuelle.", 12,
+        TextView foot = label("Mode autonome : aucun service Accessibilité requis. " +
+            "Les commandes sont envoyées seulement si les fournisseurs publient " +
+            "une action directe compatible ; aucun crédit n'est présumé reçu.", 12,
             DashboardStyles.MUTED, false);
         foot.setGravity(Gravity.CENTER_HORIZONTAL);
         content.addView(foot);
@@ -235,18 +213,6 @@ public final class MainActivity extends Activity {
             ViewGroup.LayoutParams.MATCH_PARENT, dp(52));
         directParams.topMargin = dp(10);
         content.addView(direct, directParams);
-
-        stopGuideButton = action("■  Arrêter le parcours en cours",
-            0xff3a2736, DashboardStyles.TEXT, () -> {
-                GuidedClaimService.cancel(this);
-                toast("Parcours assisté arrêté");
-                refresh();
-            });
-        stopGuideButton.setVisibility(View.GONE);
-        LinearLayout.LayoutParams stopParams = new LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, dp(50));
-        stopParams.topMargin = dp(9);
-        content.addView(stopGuideButton, stopParams);
 
         subtitle = label("Sans Accessibilité · commandes de notification uniquement",
             12, DashboardStyles.MUTED, false);
@@ -817,9 +783,6 @@ public final class MainActivity extends Activity {
         });
         setting("Accès aux notifications", "Boutons directs proposés par les services",
             () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
-        setting("Assistance manuelle (facultative)",
-            "Option indépendante : ouvrir les applications à l'écran, seulement sur demande",
-            this::startOptionalGuided);
         setting("Notifications système", "Recevoir les informations de suivi",
             () -> requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 11));
         setting("Paramètres de l'application", "Batterie, autorisations, restrictions HyperOS",
@@ -836,7 +799,6 @@ public final class MainActivity extends Activity {
                 .setPositiveButton("Arrêter", (d, w) -> {
                     new RunStore(this).enable(false);
                     new ActionBridgeState(this).enable(false);
-                    GuidedClaimService.cancel(this);
                     DailyScheduler.schedule(this);
                     refresh();
                 }).setNegativeButton("Annuler", null).show());
@@ -1010,46 +972,6 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Fermer", null)
             .setNeutralButton("Configurer le mode autonome",
                 (d, w) -> configureAutonomousMode())
-            .show();
-    }
-
-    /** Separate option, deliberately never entered by the autonomous path. */
-    private void startOptionalGuided() {
-        if (!getPreferences(MODE_PRIVATE).getBoolean("assistance_disclosed", false)) {
-            discloseAccessibility();
-            return;
-        }
-        if (!GuidedClaimService.connected()) {
-            startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            return;
-        }
-        if (GuidedClaimService.begin(this)) {
-            toast("Parcours facultatif démarré : écran nécessaire");
-            refresh();
-        } else {
-            toast("Parcours facultatif déjà actif ou indisponible");
-        }
-    }
-
-    private void discloseAccessibility() {
-        new AlertDialog.Builder(this)
-            .setTitle("Assistance à un appui — consentement")
-            .setMessage("Cette fonction facultative ouvre WeWard, Macadam, Winwalk " +
-                "et Sweatcoin à l'écran après ton appui. Avec l'autorisation " +
-                "Accessibilité, elle peut LIRE les libellés des boutons visibles " +
-                "des trois premiers services et CLIQUER uniquement sur un bouton " +
-                "de validation de pas explicitement reconnu. Elle ne lit pas les " +
-                "autres applications, n'enregistre pas les textes ni ne transmet " +
-                "de données. Elle n'interagit jamais avec les publicités, mots " +
-                "de passe ou opérations financières. Les clics peuvent être " +
-                "refusés par les fournisseurs ; aucun crédit n'est garanti. " +
-                "Tu peux désactiver le service dans Android à tout moment.")
-            .setPositiveButton("J'accepte · Configurer", (dialog, choice) -> {
-                getPreferences(MODE_PRIVATE).edit()
-                    .putBoolean("assistance_disclosed", true).apply();
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
-            })
-            .setNegativeButton("Refuser", null)
             .show();
     }
 
@@ -1230,15 +1152,11 @@ public final class MainActivity extends Activity {
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
-            + "\nGUIDED : interaction assistée · aucun crédit confirmé");
-        if (stopGuideButton != null) stopGuideButton.setVisibility(
-            new ClaimFlowState(this).active() ? View.VISIBLE : View.GONE);
+            + "\nSANS APPUI : aucune interaction Accessibilité");
         if (subtitle != null) subtitle.setText(
-            new ClaimFlowState(this).active()
-                ? "Assistance facultative en cours · " + new ClaimFlowState(this).summary()
-                : lastDirectActions > 0
-                    ? lastDirectActions + " commande(s) Android envoyée(s) · crédits non confirmés"
-                    : "Aucun parcours Accessibilité nécessaire pour le relevé nocturne");
+            lastDirectActions > 0
+                ? lastDirectActions + " commande(s) Android envoyée(s) · crédits non confirmés"
+                : "Mode autonome : relevé à 22 h et actions directes si disponibles");
         if (autonomousSummary != null)
             autonomousSummary.setText(AutonomousSnapshot.describe(
                 this, RewardActionListener.isConnected()));
