@@ -114,7 +114,13 @@ public final class RewardActionListener extends NotificationListenerService {
         try {
             StatusBarNotification[] notifications = getActiveNotifications();
             if (notifications != null) {
+                int inspectedProviders = 0;
                 for (StatusBarNotification item : notifications) {
+                    // Filter first: unrelated notification contents are never inspected.
+                    if (item == null ||
+                            !ClaimActionPolicy.isProvider(item.getPackageName())) continue;
+                    if (inspectedProviders >= NotificationScanPolicy.MAX_NOTIFICATIONS) break;
+                    inspectedProviders++;
                     if (inspect(item, allowDispatch, onDemand)) dispatched++;
                 }
             }
