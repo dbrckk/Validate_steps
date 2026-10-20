@@ -10,19 +10,24 @@ import java.time.LocalDate;
  */
 public final class ProviderCreditStore {
     private final SharedPreferences prefs;
+    private final Context appContext;
 
     public ProviderCreditStore(Context context) {
-        prefs = context.getSharedPreferences("provider_credit_evidence", Context.MODE_PRIVATE);
+        appContext = context.getApplicationContext();
+        prefs = appContext.getSharedPreferences("provider_credit_evidence", Context.MODE_PRIVATE);
     }
 
     public boolean report(String packageName, LocalDate day, String status) {
         if (!GuidedClaimPolicy.isTarget(packageName) || day == null ||
                 !CreditEvidencePolicy.validStatus(status)) return false;
-        return prefs.edit()
+        boolean committed = prefs.edit()
             .putString("date_" + packageName, day.toString())
             .putString("status_" + packageName, status)
             .putLong("time_" + packageName, System.currentTimeMillis())
             .commit();
+        if (committed)
+            new DailyHistoryStore(appContext).recordCredit(packageName, day, status);
+        return committed;
     }
 
     public String visibleStatus(String packageName, LocalDate day) {
@@ -62,9 +67,16 @@ public final class ProviderCreditStore {
 
     public boolean clear(String packageName) {
         if (!GuidedClaimPolicy.isTarget(packageName)) return false;
-        return prefs.edit()
+        LocalDate day;
+        try { day = LocalDate.parse(prefs.getString("date_" + packageName, "")); }
+        catch (RuntimeException invalid) { day = null; }
+        boolean committed = prefs.edit()
             .remove("date_" + packageName)
             .remove("status_" + packageName)
             .remove("time_" + packageName).commit();
+        if (committed && day != null)
+            new DailyHistoryStore(appContext).recordCredit(
+                packageName, day, CreditEvidencePolicy.UNKNOWN);
+        return committed;
     }
 }
