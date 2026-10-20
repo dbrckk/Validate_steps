@@ -33,6 +33,17 @@ public final class ProviderCreditStore {
             prefs.getString("status_" + packageName, CreditEvidencePolicy.UNKNOWN));
     }
 
+    /** Fixed user statement for the requested day; NOT provider verification. */
+    public String statusOn(String packageName, LocalDate day) {
+        if (!GuidedClaimPolicy.isTarget(packageName) || day == null ||
+                !day.toString().equals(prefs.getString("date_" + packageName, "")))
+            return CreditEvidencePolicy.UNKNOWN;
+        String stored = prefs.getString("status_" + packageName,
+            CreditEvidencePolicy.UNKNOWN);
+        return CreditEvidencePolicy.validStatus(stored) ? stored :
+            CreditEvidencePolicy.UNKNOWN;
+    }
+
     public boolean userReportedReceivedToday(String packageName, LocalDate day) {
         return GuidedClaimPolicy.isTarget(packageName)
             && CreditEvidencePolicy.userReportedReceivedToday(
