@@ -67,6 +67,12 @@ public final class ClaimFlowState {
         report(pkg, result, GuidedOutcome.NONE);
     }
 
+    /** Whether at least one actual Accessibility click was attempted this day. */
+    public boolean clickAttemptedOn(String pkg, java.time.LocalDate day) {
+        return GuidedClaimPolicy.isTarget(pkg) && day != null &&
+            day.toString().equals(prefs.getString("click_attempted_day_" + pkg, ""));
+    }
+
     /** Date-bound structured status, independent of localized display text. */
     public GuidedOutcome outcomeOn(String pkg, java.time.LocalDate day) {
         if (!GuidedClaimPolicy.isTarget(pkg) || day == null ||
