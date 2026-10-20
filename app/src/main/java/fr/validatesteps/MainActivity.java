@@ -46,6 +46,7 @@ public final class MainActivity extends Activity {
     private TextView scheduleStatus;
     private TextView stepSource;
     private TextView subtitle;
+    private TextView creditSummary;
     private TextView stopGuideButton;
     private TextView timelineText;
     private Switch scheduleSwitch;
@@ -235,6 +236,17 @@ public final class MainActivity extends Activity {
         subtitle.setGravity(Gravity.CENTER);
         subtitle.setPadding(dp(6), dp(13), dp(6), dp(5));
         content.addView(subtitle);
+
+        creditSummary = label("SUIVI DES CRÉDITS · non vérifiés", 13,
+            DashboardStyles.TEXT, true);
+        creditSummary.setGravity(Gravity.CENTER);
+        creditSummary.setPadding(dp(10), dp(12), dp(10), dp(12));
+        creditSummary.setBackground(DashboardStyles.stroke(this,
+            DashboardStyles.SURFACE, 0xff2e4963, 14, 1));
+        LinearLayout.LayoutParams creditsParams = new LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        creditsParams.bottomMargin = dp(10);
+        content.addView(creditSummary, creditsParams);
 
         LinearLayout row = row();
         TextView refresh = action("↻  Actualiser les pas", DashboardStyles.SURFACE_RAISED,
@@ -957,6 +969,15 @@ public final class MainActivity extends Activity {
                     : "◌  RELEVÉ DES PAS · HORAIRE APPROXIMATIF");
         rebuildReadiness();
         rebuildProviders();
+        if (creditSummary != null) {
+            int declared = new ProviderCreditStore(this)
+                .userReportedReceivedCount(LocalDate.now());
+            creditSummary.setText("SUIVI DES CRÉDITS · " + declared +
+                " / 4 déclarés reçus par vous aujourd'hui");
+            creditSummary.setContentDescription(
+                declared + " sur 4 récompenses déclarées reçues par vous aujourd'hui. " +
+                "Aucune validation automatique des soldes des fournisseurs.");
+        }
         if (timelineText != null) timelineText.setText(
             new NightTimeline(this).recent()
             + "\n\nAUDIT : lecture Santé Connect · CLAIM_ACTION : action de notification"
