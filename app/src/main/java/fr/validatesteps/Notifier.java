@@ -52,7 +52,7 @@ public final class Notifier {
             PendingIntent pending = PendingIntent.getActivity(context, 1300, launch,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
             builder.addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_media_play, "Tout valider · assisté", pending).build());
+                android.R.drawable.ic_media_play, "Vérifier les actions directes", pending).build());
             // Tapping the notification body only opens diagnostics, not a claim.
             PendingIntent viewOnly = PendingIntent.getActivity(context, 1301,
                 new Intent(context, MainActivity.class),
