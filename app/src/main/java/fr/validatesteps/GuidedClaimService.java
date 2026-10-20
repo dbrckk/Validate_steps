@@ -146,9 +146,15 @@ public final class GuidedClaimService extends AccessibilityService {
         if ((txt != null && GuidedClaimPolicy.canClick(pkg, txt.toString())) ||
             (desc != null && GuidedClaimPolicy.canClick(pkg, desc.toString()))) {
             AccessibilityNodeInfo clickable = node;
-            for (int i = 0; i < 4 && clickable != null; i++) {
-                if (clickable.isClickable() && clickable.isEnabled()
-                    && clickable.isVisibleToUser()) return clickable;
+            for (int i = 0;
+                    i <= GuidedClickSafetyPolicy.MAX_PARENT_HOPS && clickable != null; i++) {
+                CharSequence owner = clickable.getPackageName();
+                if (GuidedClickSafetyPolicy.permitted(pkg,
+                        owner == null ? null : owner.toString(),
+                        i, clickable.isClickable(), clickable.isEnabled(),
+                        clickable.isVisibleToUser())) return clickable;
+                // Do not cross into a view owned by Android or another app.
+                if (owner == null || !pkg.contentEquals(owner)) return null;
                 clickable = clickable.getParent();
             }
         }
