@@ -47,7 +47,8 @@ public final class GuidedClaimService extends AccessibilityService {
         ClaimFlowState state = new ClaimFlowState(context);
         String target = state.target();
         if (target != null) {
-            state.report(target, "Parcours interrompu · validation non confirmée");
+            state.report(target, "Parcours interrompu · validation non confirmée",
+                GuidedOutcome.CANCELED);
             new NightTimeline(context).add(NightTimeline.Event.GUIDED_CANCELED,
                 java.time.LocalDate.now());
         }
@@ -122,7 +123,8 @@ public final class GuidedClaimService extends AccessibilityService {
                 }
                 state.report(target, performed
                     ? "Clic de validation tenté · crédit à vérifier"
-                    : "Bouton trouvé mais clic refusé");
+                    : "Bouton trouvé mais clic refusé",
+                    performed ? GuidedOutcome.CLICK_ATTEMPTED : GuidedOutcome.CLICK_REFUSED);
                 new NightTimeline(this).addProvider(performed
                     ? NightTimeline.Event.GUIDED_CLICK_ATTEMPTED
                     : NightTimeline.Event.GUIDED_CLICK_REFUSED, java.time.LocalDate.now(), target);
@@ -186,7 +188,8 @@ public final class GuidedClaimService extends AccessibilityService {
                 target, java.time.LocalDate.now())) {
             // A user already checked the actual provider account and said
             // the rewards were received: do not click them again today.
-            state.report(target, "Déjà déclaré reçu par vous · aucun nouveau clic");
+            state.report(target, "Déjà déclaré reçu par vous · aucun nouveau clic",
+                GuidedOutcome.SKIPPED_USER_RECEIVED);
             finishCurrent(target);
             return;
         }
@@ -194,13 +197,15 @@ public final class GuidedClaimService extends AccessibilityService {
                 target, java.time.LocalDate.now())) {
             // Avoid a second claim attempt when an exact provider notification
             // command was already sent earlier today (not yet settlement proof).
-            state.report(target, "Action directe déjà envoyée · crédit à vérifier");
+            state.report(target, "Action directe déjà envoyée · crédit à vérifier",
+                GuidedOutcome.SKIPPED_DIRECT);
             finishCurrent(target);
             return;
         }
         Intent launch = getPackageManager().getLaunchIntentForPackage(target);
         if (launch == null) {
-            state.report(target, "Application absente · à installer");
+            state.report(target, "Application absente · à installer",
+                GuidedOutcome.APP_MISSING);
             new NightTimeline(this).addProvider(NightTimeline.Event.GUIDED_APP_ABSENT,
                 java.time.LocalDate.now(), target);
             finishCurrent(target);
@@ -211,21 +216,25 @@ public final class GuidedClaimService extends AccessibilityService {
         try {
             startActivity(launch);
         } catch (RuntimeException blocked) {
-            state.report(target, "Android a bloqué l'ouverture");
+            state.report(target, "Android a bloqué l'ouverture",
+                GuidedOutcome.OPEN_BLOCKED);
             new NightTimeline(this).addProvider(NightTimeline.Event.GUIDED_OPEN_BLOCKED,
                 java.time.LocalDate.now(), target);
             finishCurrent(target);
             return;
         }
         if (ProviderPackages.SWEATCOIN.equals(target)) {
-            state.report(target, "Ouverte pour synchronisation · crédit non confirmé");
+            state.report(target, "Ouverte pour synchronisation · crédit non confirmé",
+                GuidedOutcome.SWEATCOIN_OPENED);
             handler.postDelayed(() -> finishCurrent(target), 4200L);
         } else {
-            state.report(target, "Recherche du bouton de pas en cours…");
+            state.report(target, "Recherche du bouton de pas en cours…",
+                GuidedOutcome.SEARCHING);
             handler.postDelayed(() -> {
                 if (target.equals(new ClaimFlowState(this).target()) && !waitingForNext) {
                     new ClaimFlowState(this).report(target,
-                        "Bouton direct non trouvé · validation manuelle requise");
+                        "Bouton direct non trouvé · validation manuelle requise",
+                        GuidedOutcome.BUTTON_MISSING);
                     new NightTimeline(this).addProvider(NightTimeline.Event.GUIDED_BUTTON_MISSING,
                         java.time.LocalDate.now(), target);
                     finishCurrent(target);
