@@ -1,6 +1,6 @@
-# Validate Steps (v1.1.0) — mode autonome sans Accessibilité
+# Validate Steps (v1.1.1) — mode nocturne sans service Accessibilité
 
-Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et proposer une assistance facultative pour les applications de récompenses. Le code est compilé et contrôlé dans GitHub Actions. **Aucun mécanisme autorisé ne garantit le crédit automatique de tous les fournisseurs.**
+Projet Android natif pour relever les pas réels à 22 h sans ouvrir l'écran et exécuter, si elles existent, les actions directes de notifications des fournisseurs. **L'application v1.1.1 n'installe aucun service Accessibilité et ne demande aucun appui quotidien.** Le code est compilé et contrôlé dans GitHub Actions. **Aucun mécanisme autorisé ne garantit le crédit automatique de tous les fournisseurs.**
 
 ## Fonctionnalités
 - **22:00 heure locale** : `AlarmManager` lance un `BroadcastReceiver`, qui confie la lecture à **WorkManager** (`androidx.work:work-runtime:2.12.0`). L'écran ne s'ouvre pas.
@@ -535,3 +535,10 @@ Aucun logiciel ne peut promettre une version « définitive » au sens d'impossi
 
 Les règles autonomes et du rappel nocturne sont couvertes par des tests unitaires (autorisation, date, fenêtre de 23 h 15 à 23 h 40, absence de répétition, mode arrêté, non-confirmation des crédits). Les APK sont compilés et vérifiés dans GitHub Actions. Sur HyperOS, les alarmes et le maintien des services en arrière-plan doivent encore être testés sur le téléphone réel.
 
+
+
+## v1.1.1 — Aucune assistance à un appui
+
+La version installée ne déclare plus `BIND_ACCESSIBILITY_SERVICE`, ne propose plus l'option de parcours assisté et retire le moteur de clics Accessibilité ainsi que son action dans la notification du soir. Le mode autonome de la v1.1 reste activable une fois et préserve son rappel facultatif, le relevé à 22 h, les secours et les bilans locaux. Le bouton facultatif « Examiner les actions directes maintenant » reste un diagnostic ponctuel **sans Accessibilité** ; il n'est pas nécessaire au fonctionnement nocturne.
+
+Les actions automatiques sont possibles uniquement si WeWard, Macadam ou Winwalk exposent réellement une commande de notification Android admissible. WeWard et Macadam demandent normalement une validation dans leur application ; une lecture Santé Connect ou un `PendingIntent` envoyé ne certifie aucun crédit. Sweatcoin traite les pas en arrière-plan par son propre système. Les passages précédents évoquant l'assistance concernent les versions antérieures et non cet APK.
