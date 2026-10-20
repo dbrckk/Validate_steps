@@ -36,6 +36,14 @@ public final class ActionBridgeState {
                 prefs.getString("status_" + packageName, ""));
     }
 
+    /** Fixed-category notification observation for the requested local day. */
+    public String observationOn(String packageName, LocalDate day) {
+        if (!ClaimActionPolicy.isProvider(packageName) || day == null ||
+                !day.toString().equals(prefs.getString("seen_" + packageName, "")))
+            return "";
+        return prefs.getString("category_" + packageName, "");
+    }
+
     /** Today's fixed internal result only; stale attempts never leak to today's report. */
     public String actionStatusOn(String packageName, LocalDate day) {
         if (!ClaimActionPolicy.isProvider(packageName) || day == null ||
