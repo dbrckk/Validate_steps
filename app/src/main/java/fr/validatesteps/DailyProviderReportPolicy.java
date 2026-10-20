@@ -111,6 +111,19 @@ public final class DailyProviderReportPolicy {
     }
 
     public static String render(LocalDate day, String auditStatus, Entry[] entries) {
+        return renderInternal(day, auditStatus, entries, true);
+    }
+
+    /**
+     * Historical install state was not recorded on each event. Omitting it is
+     * more accurate than showing today's app-install status for an old date.
+     */
+    public static String renderArchive(LocalDate day, String auditStatus, Entry[] entries) {
+        return renderInternal(day, auditStatus, entries, false);
+    }
+
+    private static String renderInternal(LocalDate day, String auditStatus,
+            Entry[] entries, boolean includeInstallation) {
         if (day == null) return "Date du rapport indisponible";
         Entry[] safe = entries == null ? new Entry[0] : entries;
         int declaredReceived = 0;
@@ -140,9 +153,10 @@ public final class DailyProviderReportPolicy {
 
         for (Entry item : safe) {
             if (item == null) continue;
-            result.append("\n\n").append(item.name == null ? "Service" : item.name)
-                .append(item.installed ? " · installée" : " · non installée")
-                .append("\n  Signal détecté : ").append(observationDescription(item.observation))
+            result.append("\n\n").append(item.name == null ? "Service" : item.name);
+            if (includeInstallation)
+                result.append(item.installed ? " · installée" : " · non installée");
+            result.append("\n  Signal détecté : ").append(observationDescription(item.observation))
                 .append("\n  Commande directe : ").append(directDescription(item.direct))
                 .append("\n  Assistance : ").append(item.guided.description());
             if (item.clickAttemptedToday && !item.guided.clickAttempted())
