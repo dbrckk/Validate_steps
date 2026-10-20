@@ -47,6 +47,40 @@ public final class DailyProviderReportPolicyTest {
             "action_envoyee_credit_non_confirme"));
     }
 
+    @Test public void notificationObservationsExplainWhyNoAutomaticActionWasSent() {
+        String text = DailyProviderReportPolicy.render(day, "",
+            new DailyProviderReportPolicy.Entry[] {
+                new DailyProviderReportPolicy.Entry("WeWard", true, "",
+                    "action_ouvrant_interface", GuidedOutcome.NONE,
+                    CreditEvidencePolicy.UNKNOWN),
+                new DailyProviderReportPolicy.Entry("Macadam", true, "",
+                    "libelle_de_recompense_ambigu", GuidedOutcome.BUTTON_MISSING,
+                    CreditEvidencePolicy.UNKNOWN),
+                new DailyProviderReportPolicy.Entry("Winwalk", true, "",
+                    "origine_action_non_verifiee", GuidedOutcome.NONE,
+                    CreditEvidencePolicy.UNKNOWN),
+                new DailyProviderReportPolicy.Entry("Sweatcoin", true, "",
+                    "", GuidedOutcome.SWEATCOIN_OPENED, CreditEvidencePolicy.UNKNOWN)
+            });
+        assertTrue(text.contains("Action ouvrant une interface"));
+        assertTrue(text.contains("Libellé de récompense ambigu"));
+        assertTrue(text.contains("origine Android non vérifiée"));
+        assertTrue(text.contains("Sweatcoin ouvert pour synchronisation"));
+        assertTrue(text.contains("4 non vérifiée(s)"));
+        assertFalse(text.contains("Déclarations : 4 reçue(s)"));
+    }
+
+    @Test public void unexpectedObservationCodesDoNotLeakTextIntoDailyReport() {
+        String hostile = "CUSTOM_PASSWORD_OR_NOTIFICATION_BODY_123";
+        String text = DailyProviderReportPolicy.render(day, "",
+            new DailyProviderReportPolicy.Entry[] {
+                new DailyProviderReportPolicy.Entry("WeWard", true, "", hostile,
+                    GuidedOutcome.NONE, CreditEvidencePolicy.UNKNOWN)
+            });
+        assertFalse(text.contains(hostile));
+        assertTrue(text.contains("Aucun bouton analysé"));
+    }
+
     @Test public void unknownCodesAreSafeAndNullDateIsHandled() {
         assertTrue(DailyProviderReportPolicy.directDescription("provider_confirmed")
             .contains("Aucune commande"));
