@@ -123,9 +123,9 @@ public final class GuidedClaimService extends AccessibilityService {
                 state.report(target, performed
                     ? "Clic de validation tenté · crédit à vérifier"
                     : "Bouton trouvé mais clic refusé");
-                new NightTimeline(this).add(performed
+                new NightTimeline(this).addProvider(performed
                     ? NightTimeline.Event.GUIDED_CLICK_ATTEMPTED
-                    : NightTimeline.Event.GUIDED_CLICK_REFUSED, java.time.LocalDate.now());
+                    : NightTimeline.Event.GUIDED_CLICK_REFUSED, java.time.LocalDate.now(), target);
                 handler.postDelayed(() -> finishCurrent(target), 2500L);
             }
         } catch (RuntimeException staleUiTree) {
@@ -201,8 +201,8 @@ public final class GuidedClaimService extends AccessibilityService {
         Intent launch = getPackageManager().getLaunchIntentForPackage(target);
         if (launch == null) {
             state.report(target, "Application absente · à installer");
-            new NightTimeline(this).add(NightTimeline.Event.GUIDED_APP_ABSENT,
-                java.time.LocalDate.now());
+            new NightTimeline(this).addProvider(NightTimeline.Event.GUIDED_APP_ABSENT,
+                java.time.LocalDate.now(), target);
             finishCurrent(target);
             return;
         }
@@ -212,8 +212,8 @@ public final class GuidedClaimService extends AccessibilityService {
             startActivity(launch);
         } catch (RuntimeException blocked) {
             state.report(target, "Android a bloqué l'ouverture");
-            new NightTimeline(this).add(NightTimeline.Event.GUIDED_OPEN_BLOCKED,
-                java.time.LocalDate.now());
+            new NightTimeline(this).addProvider(NightTimeline.Event.GUIDED_OPEN_BLOCKED,
+                java.time.LocalDate.now(), target);
             finishCurrent(target);
             return;
         }
@@ -226,8 +226,8 @@ public final class GuidedClaimService extends AccessibilityService {
                 if (target.equals(new ClaimFlowState(this).target()) && !waitingForNext) {
                     new ClaimFlowState(this).report(target,
                         "Bouton direct non trouvé · validation manuelle requise");
-                    new NightTimeline(this).add(NightTimeline.Event.GUIDED_BUTTON_MISSING,
-                        java.time.LocalDate.now());
+                    new NightTimeline(this).addProvider(NightTimeline.Event.GUIDED_BUTTON_MISSING,
+                        java.time.LocalDate.now(), target);
                     finishCurrent(target);
                 }
             }, 14000L);
