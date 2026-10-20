@@ -166,7 +166,7 @@ public final class MainActivity extends Activity {
         titles.addView(label("Vos pas. Vos récompenses.", 12, DashboardStyles.MUTED, false));
         row.addView(titles, new LinearLayout.LayoutParams(0,
             ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView version = label("v0.19", 11, DashboardStyles.ACCENT, true);
+        TextView version = label("v0.20", 11, DashboardStyles.ACCENT, true);
         version.setPadding(dp(12), dp(7), dp(12), dp(7));
         version.setBackground(DashboardStyles.round(this, 0xff183a40, 99));
         row.addView(version);
