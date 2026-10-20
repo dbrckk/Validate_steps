@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import java.time.LocalDate;
+import java.time.ZonedDateTime;
 
 /** No UI. Each scheduled alarm carries the date it belongs to. */
 public final class NightlyReceiver extends BroadcastReceiver {
@@ -12,7 +13,8 @@ public final class NightlyReceiver extends BroadcastReceiver {
         NightTimeline timeline = new NightTimeline(context);
         if (!store.enabled() || intent == null) return;
 
-        LocalDate today = LocalDate.now();
+        ZonedDateTime now = ZonedDateTime.now();
+        LocalDate today = now.toLocalDate();
         LocalDate auditedDay = AuditDay.resolve(
             intent.getStringExtra(DailyScheduler.EXTRA_AUDIT_DATE), today);
         if (auditedDay == null) {
@@ -24,8 +26,15 @@ public final class NightlyReceiver extends BroadcastReceiver {
             : NightTimeline.Event.ALARM_RECEIVED, auditedDay);
 
         DailyScheduler.schedule(context);
-        RewardActionListener.ensureConnected(context);
-        RewardActionListener.inspectConnectedNow();
+        // An old alarm may be delivered after midnight or even 22h on a
+        // later day. Keep its audit date, but never let it trigger today's
+        // reward notifications or a listener reconnection.
+        if (ScheduledActionPolicy.canInspect(auditedDay, now, store.enabled())) {
+            RewardActionListener.ensureConnected(context);
+            RewardActionListener.inspectConnectedNow();
+        } else {
+            timeline.add(NightTimeline.Event.SCHEDULED_ACTION_IGNORED, auditedDay);
+        }
         if (auditedDay.equals(today)) {
             // A safety retry remains scheduled even if Android kills the worker.
             DailyScheduler.scheduleRecovery(context, false);
