@@ -1,4 +1,4 @@
-# Validate Steps (v0.20) — 22 h autonome, sans interface quotidienne
+# Validate Steps (v0.21) — 22 h autonome, sans interface quotidienne
 
 Projet Android natif, **réellement compilé et testé en CI**, pour relever les pas à 22 h sans ouvrir d'écran, app compagnon ni service tiers.
 
@@ -437,3 +437,28 @@ La v0.20 corrige cette distinction :
 **À distinguer :** les actions directes lancées volontairement par le bouton « Tout valider » conservent leur logique indépendante de l'heure ; les notifications nouvelles réellement émises par un fournisseur conservent le contrôle de consentement et la fenêtre nocturne. Aucun mécanisme d'Accessibilité n'est exécuté sans geste utilisateur, aucune pièce n'est déclarée créditée sur la seule base d'un `PendingIntent`.
 
 Documentation Android sur les retards : https://developer.android.com/training/monitoring-device-state/doze-standby et https://developer.android.com/develop/background-work/services/alarms.
+
+
+## v0.21 — Rapport quotidien par application, sans fausse confirmation
+
+Le tableau de bord comporte désormais un **« Bilan du jour »**, calculé à la demande à partir de données déjà disponibles en local, pour **WeWard, Macadam, Winwalk et Sweatcoin**. Un bouton permet de copier ce bilan dans le presse-papiers du smartphone ; un second permet de l'actualiser.
+
+### Quatre états distincts, jamais confondus
+
+1. **Lecture Santé Connect :** réussite, lecture en cours, absence d'autorisation, ou relevé indisponible.
+2. **Commande de notification :** aucune, réservée, annulée, en échec, ou `PendingIntent` envoyé à Android (ce dernier état n'est **pas** une récompense créditée).
+3. **Parcours assisté :** aucun, recherche en cours, clic de bouton de pas tenté, clic refusé, bouton absent, application absente, ouverture bloquée, application ouverte pour synchronisation, parcours interrompu ou saut anti-doublon.
+4. **Déclaration de l'utilisateur :** réception déclarée après consultation de l'application, non-réception déclarée ou non-vérifié. Ces déclarations **ne constituent pas** une attestation du fournisseur.
+
+Les données du rapport sont **scindées par date locale**. Un événement d'hier ne peut jamais être présenté comme un clic ou un crédit d'aujourd'hui. Les anciens états textuels restent consultables mais ne sont pas promus artificiellement au rang de clic constaté ; seul un nouveau code de résultat structuré est pris en compte après cette mise à jour.
+
+### Protection des données et comportement
+
+- Aucun accès Internet, aucun identifiant de compte, aucune lecture des soldes ou des messages privés.
+- Les statuts de parcours sont des codes fixes de type `GuidedOutcome`, non le texte arbitraire d'une notification.
+- Le rapport copié contient les types d'actions et les déclarations, **pas le nombre individuel de pas**.
+- Les compteurs affichent séparément le nombre de commandes envoyées, de clics assistés tentés, de réceptions déclarées, de non-réceptions déclarées et de cas non vérifiés.
+- Aucun déclenchement automatique, clic ou déclaration ne peut être présenté comme une preuve serveur.
+- Tests unitaires de la classification des tentatives et de la distinction entre crédit déclaré et crédit jamais vérifié par l'application.
+
+**Limite importante :** le bilan résume ce que le téléphone a réellement observé et ce que l'utilisateur a déclaré. Sans preuve côté fournisseur, il est impossible de certifier automatiquement que toutes les récompenses ont été encaissées.
