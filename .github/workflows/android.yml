@@ -17,6 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Reject AccessibilityService in unattended APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice.AccessibilityService' app/src/main/AndroidManifest.xml; then
+            echo "::error::Unattended APK must not register any AccessibilityService"
+            exit 1
+          fi
+          echo "No AccessibilityService registered"
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
