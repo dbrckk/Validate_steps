@@ -46,11 +46,27 @@ public final class ClaimFlowState {
             ? GuidedClaimPolicy.ORDER[i] : null;
     }
 
-    public void report(String pkg, String result) {
-        if (!GuidedClaimPolicy.isTarget(pkg)) return;
+    public void report(String pkg, String result, GuidedOutcome outcome) {
+        if (!GuidedClaimPolicy.isTarget(pkg) || outcome == null) return;
+        String today = java.time.LocalDate.now().toString();
         prefs.edit().putString("result_" + pkg, result)
-            .putString("result_day_" + pkg, java.time.LocalDate.now().toString())
+            .putString("result_day_" + pkg, today)
+            .putString("outcome_" + pkg, outcome.name())
+            .putString("outcome_day_" + pkg, today)
             .putString("summary", result).commit();
+    }
+
+    /** Compatibility with older in-process callers: never invent a click. */
+    public void report(String pkg, String result) {
+        report(pkg, result, GuidedOutcome.NONE);
+    }
+
+    /** Date-bound structured status, independent of localized display text. */
+    public GuidedOutcome outcomeOn(String pkg, java.time.LocalDate day) {
+        if (!GuidedClaimPolicy.isTarget(pkg) || day == null ||
+                !day.toString().equals(prefs.getString("outcome_day_" + pkg, "")))
+            return GuidedOutcome.NONE;
+        return GuidedOutcome.fromStored(prefs.getString("outcome_" + pkg, ""));
     }
 
     public boolean advance(String expectedPkg) {
