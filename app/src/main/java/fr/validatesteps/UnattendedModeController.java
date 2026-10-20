@@ -20,6 +20,13 @@ public final class UnattendedModeController {
     public UnattendedModeController(Context context) {
         this.context = context.getApplicationContext();
         this.prefs = this.context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        // Carry over an explicit v1.0 opt-in to BOTH daily alarms and direct
+        // notification actions. Never auto-opt-in users who enabled only
+        // step auditing, or who declined access to notifications.
+        if (!prefs.contains(KEY) && new RunStore(this.context).enabled() &&
+                new ActionBridgeState(this.context).enabled()) {
+            prefs.edit().putBoolean(KEY, true).commit();
+        }
     }
 
     public boolean requested() { return prefs.getBoolean(KEY, false); }
