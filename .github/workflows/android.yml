@@ -17,6 +17,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Assert no Accessibility-driven third-party automation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eq 'BIND_ACCESSIBILITY_SERVICE|android.accessibilityservice.AccessibilityService' app/src/main/AndroidManifest.xml; then
+            echo "::error::Unattended release must not declare AccessibilityService."
+            exit 1
+          fi
+          echo "No AccessibilityService is declared."
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
