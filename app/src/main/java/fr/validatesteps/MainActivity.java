@@ -442,6 +442,20 @@ public final class MainActivity extends Activity {
         detail.setPadding(0, dp(14), 0, 0);
         detail.setLineSpacing(dp(3), 1f);
         card.addView(detail);
+        if (ProviderPackages.WEWARD.equals(pkg) || ProviderPackages.MACADAM.equals(pkg)) {
+            TextView limit = label(
+                "Ce fournisseur exige normalement une validation dans sa propre application.",
+                11, DashboardStyles.WARNING, false);
+            limit.setPadding(0, dp(7), 0, 0);
+            card.addView(limit);
+        } else if (ProviderPackages.WINWALK.equals(pkg)) {
+            TextView tip = label(
+                "Winwalk : la collecte automatique jusqu'à minuit nécessite " +
+                "d'activer son option via une vidéo quotidienne dans Winwalk.",
+                11, DashboardStyles.MUTED, false);
+            tip.setPadding(0, dp(7), 0, 0);
+            card.addView(tip);
+        }
 
         // The user can report an actual provider-side credit after checking
         // the source app. Such a report is never represented as server proof.
